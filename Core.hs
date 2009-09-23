@@ -17,7 +17,7 @@ data ME p q
 -- | Un effetto di una state machine
 data Effect p q = Effect 
 	(ME p q) -- effetto sulla macchina
-	[forall s. Serializzabile s => (SM p q,s)]  -- ^ nuove macchine
+	[SM p q]  -- ^ nuove macchine
 	[p] -- ^ nuovi messaggi
 	[q] -- ^ risposte
 	
