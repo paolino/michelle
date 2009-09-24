@@ -1,10 +1,11 @@
-{-# LANGUAGE ExistentialQuantification, FunctionalDependencies , TypeSynonymInstances, ScopedTypeVariables, MultiParamTypeClasses, DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses #-}
 import Control.Monad.State
 import Data.Char
 import Data.Dynamic
 import Data.List
 import Machine 
-import Concurrent2
+import System.IO
+import Launch
 
 data GQuery = Apri String | Chiudi String deriving (Show,Read,Typeable)
 data GResult = Aperta Int | Chiusa Int deriving (Show,Read,Typeable)
@@ -34,3 +35,13 @@ instance SMClass HState HQuery HResult where
 provaeventi = [P $ Apri "ciao",P $ Aggiorna 0,P $ Aggiorna 0,P $ Chiudi "ciao"] 
 provastati = [SM $ GState 0 []]
 
+main = do
+	hSetBuffering stdout LineBuffering
+	(s,l,q) <- lancia provastati print
+	q
+	mapM_ s provaeventi
+	q
+	l >>= print
+	l >>= print
+	l >>= print
+	q

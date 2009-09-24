@@ -1,8 +1,8 @@
-{-# LANGUAGE ExistentialQuantification, FunctionalDependencies , TypeSynonymInstances, ScopedTypeVariables, MultiParamTypeClasses, DeriveDataTypeable #-}
+{-# LANGUAGE ExistentialQuantification, FunctionalDependencies, MultiParamTypeClasses  #-}
 
 module Machine where
 
-import Data.Typeable
+import Data.Typeable (Typeable, cast)
 
 -- | Cosa produce una macchina quando processa un evento da lei accettato per contratto
 data Effect s q  = Effect {
@@ -20,6 +20,8 @@ class (Read s, Show s) => SMClass s p q | s -> p , s -> q where
 data SM = forall s p q . (Read q, Show q, Typeable q, 
 	Read p , Show p, Typeable p, SMClass s p q) => SM s
 
+instance Show SM where
+	show (SM x) = show x
 -- | la scatola per gli eventi
 data P = forall p. (Read p, Show p, Typeable p) => P p
 
