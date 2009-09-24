@@ -6,6 +6,7 @@ import Data.List
 import Machine 
 import System.IO
 import Launch
+import Control.Concurrent
 
 data GQuery = Apri String | Chiudi String deriving (Show,Read,Typeable)
 data GResult = Aperta Int | Chiusa Int deriving (Show,Read,Typeable)
@@ -38,10 +39,9 @@ provastati = [SM $ GState 0 []]
 main = do
 	hSetBuffering stdout LineBuffering
 	(s,l,q) <- lancia provastati print
-	q
-	mapM_ s provaeventi
-	q
-	l >>= print
-	l >>= print
-	l >>= print
-	q
+	threadDelay 500000 >> q
+	mapM_ s [P $ Apri "ciao",P $ Aggiorna 0,P $ Aggiorna 0]
+	threadDelay 500000 >> q
+	s . P $ Chiudi "ciao"
+	threadDelay 500000 >> q
+	replicateM 4 $ l >>= print

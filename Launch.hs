@@ -10,6 +10,7 @@ import Data.Maybe (isJust, fromJust)
 import Control.Exception (handle, throwTo, Exception)
 import Data.List (delete)
 import Data.Typeable (Typeable)
+import Debug.Trace
 
 -- | un duplicatore di canale che copia anche gli eventi presenti
 dup'TChan t = do	
@@ -36,7 +37,7 @@ nuova se ts c d x = forkIO $ do
 	t <- atomically $ dup'TChan c -- copiamo il canale di ingresso
 	k <- myThreadId -- ci serve per morire
 	atomically $ modifyTVar ts (k:)
-	let op x = handle (\Serialize -> se x >> op x) $ do 
+	let op x = handle (\Serialize -> trace "here" $ se x >> op x) $ do 
 		(cond,nms) <- atomically $ do
 			p <- readTChan t --aspettiamo un nuovo evento
 			let 	result = esecuzione x p
