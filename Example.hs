@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables, DeriveDataTypeable, MultiParamTypeClasses, NoMonomorphismRestriction #-}
 import Control.Monad.State
 import Data.Char
 import Data.Typeable
@@ -8,43 +8,73 @@ import System.IO
 import Launch
 import Control.Concurrent
 import Control.Concurrent.STM
+import Debug.Trace
 
-data GQuery = Apri String | Chiudi String | Aperta Int | Chiusa Int deriving (Show,Read,Typeable)
+data GQuery = Apri String | Chiudi String deriving (Typeable)
 data GState = GState Int [(String,Int)] 	
 
-aperti :: GState -> Maybe (STM [String])
-aperti (SM x = cast x >>= f r where
-	f x = map fst `fmap` readTVar x 
 
+
+continue = return $ Right ([],[])
 instance SMClass GState GQuery where
-	step g@(GState k xs) (Apri s) = case find ((==s) . fst) xs of 
-		Nothing -> Effect (Just $ GState (k + 1) ((s,k):xs)) [SM $ HState (k 0] [E $ Aperta k]
-		_ -> Effect (return $ Just g) [] [] 
-	step g@(GState k xs)  (Chiudi s) = case find ((==s) . fst) xs of 
-		Nothing -> Effect (return $ Just g) [] [] 
-		Just (_,k') ->  Effect (return . Just $ GState k (delete (s,k') xs)) [] [E $ Fine k'] 
+	step g (Apri s) =  do
+		GState k xs <- readTVar g
+		case lookup s xs of 
+			Nothing -> do
+				writeTVar g $ GState (k + 1) ((s,k):xs)
+				let test y = do
+					GState _ xs <- readTVar g
+					return $ y `elem` map snd xs
+				return . Right $ ([SM $ HState test k 0], [])
+			_ -> continue
+
+	step g (Chiudi s) = do  
+		GState k xs <- readTVar g
+		case lookup s xs of 
+			Nothing -> continue 
+			Just k' ->  writeTVar g (GState k (delete (s,k') xs)) >> continue
 
 data HState = HState (Int -> STM Bool) Int Int
-data HQuery = Aggiorna Int | Fine Int | Conto Int deriving (Show,Read,Typeable)
+data HQuery = Aggiorna Int (Int  -> Int) | Conto Int (Int -> E) deriving (Typeable)
+
 
 instance SMClass HState HQuery where
-	step h@(HState t k y) (Aggiorna x) = case x /= k of
-		True -> Effect (Just h) [] [] Nothing
-		False -> Effect (Just $ HState k (y + 1)) [] [P . QAperti  $ P . CiSono . elem k . map snd] (Just $ Conto (y+1))
-	step h@(HState k y) (Fine x) = case x /= k of
-		True -> Effect (Just h) [] [] Nothing
-		False -> Effect Nothing [] [] (Just $ Morto k)
+	step h (Aggiorna x u) = do 
+		HState t k y <- readTVar h
+		case x /= k of
+			True -> continue
+			False -> do 
+				r <- t x
+				case r of
+					True -> do 
+						writeTVar h $ HState t k (u y)
+						continue
+					False -> return $ Left ([],[])
+	step h (Conto x f) = do
+		HState t k y <- readTVar h
+		case x /= k of
+			True -> continue
+			False -> do 
+				return $ Right ([],[f y])		
 
+data Rs = RConto Int deriving (Show,Typeable)
 
-provaeventi = [P $ Apri "ciao",P $ Aggiorna 0,P $ Aggiorna 0,P $ Chiudi "ciao"] 
-provastati = [SM $ GState 0 []]
+waitRs :: TChan E -> IO ()
+waitRs c = do
+        E l <- atomically $ readTChan c
+        case cast l `asTypeOf` Just (undefined :: Rs) of
+                Nothing -> waitRs c 
+                Just y -> print y
+
 
 main = do
 	hSetBuffering stdout LineBuffering
-	(s,l,q) <- lancia provastati print
-	threadDelay 500000 >> q
-	mapM_ s [P $ Apri "ciao",P $ Aggiorna 0,P $ Aggiorna 0]
-	threadDelay 500000 >> q
-	s . P $ Chiudi "ciao"
-	threadDelay 500000 >> q
-	replicateM 4 $ l >>= print
+	s <- boot [SM $ GState 0 []]
+	forkIO $ waitRs s
+	mapM_ (\x -> threadDelay 50000 >> atomically (writeTChan s x))
+		[	E $ Apri "ciao",
+			E $ Aggiorna 0 (+4),
+			E $ Aggiorna 0 (+3),
+			E $ Conto 0 (E . RConto), 
+			E $ Chiudi "ciao"
+		]
