@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-module Launch 
+module Launch (boot) 
  where
 
 import Machine
@@ -11,7 +11,6 @@ import Data.Maybe (isJust, fromJust, isNothing)
 import Control.Exception (handle, throwTo, Exception)
 import Data.List (delete)
 import Data.Typeable (Typeable,cast)
-import Debug.Trace
 
 -- | un duplicatore di canale che copia anche gli eventi presenti
 dup'TChan t = do	
@@ -38,13 +37,13 @@ esecuzione es' xs = forM_ xs $ \(SM x') -> do
 			(c,bs) <- atomically $ do 
 				E y <- readTChan es -- aspettiamo un evento	
 				case cast y of 	
-					Nothing -> return $ (False,[]) -- l'evento non era associato allo stato
+					Nothing -> return $ (True, []) -- l'evento non era associato allo stato
 					Just e -> do
-						(ops,(bs,ps)) <- coupleEither `fmap` step x e
+						Response ops bs ps <- step x e
 						forM_ ps $ writeTChan es -- aggiorniamo la coda eventi
 						return $ (ops,bs)
 			esecuzione es bs -- lancio delle macchine nuove
-			when c $ myThreadId >>= killThread -- morte del thread
+			when (not c) $ myThreadId >>= killThread -- morte del thread
 		return ()
 
 boot	:: [SM] -- gli stati iniziali

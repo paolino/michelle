@@ -13,9 +13,8 @@ import Debug.Trace
 data GQuery = Apri String | Chiudi String deriving (Typeable)
 data GState = GState Int [(String,Int)] 	
 
+continue = return $ Response True [] []
 
-
-continue = return $ Right ([],[])
 instance SMClass GState GQuery where
 	step g (Apri s) =  do
 		GState k xs <- readTVar g
@@ -25,7 +24,7 @@ instance SMClass GState GQuery where
 				let test y = do
 					GState _ xs <- readTVar g
 					return $ y `elem` map snd xs
-				return . Right $ ([SM $ HState test k 0], [])
+				return $ Response True [SM $ HState test k 0] []
 			_ -> continue
 
 	step g (Chiudi s) = do  
@@ -49,13 +48,13 @@ instance SMClass HState HQuery where
 					True -> do 
 						writeTVar h $ HState t k (u y)
 						continue
-					False -> return $ Left ([],[])
+					False -> return $ Response False [] []
 	step h (Conto x f) = do
 		HState t k y <- readTVar h
 		case x /= k of
 			True -> continue
 			False -> do 
-				return $ Right ([],[f y])		
+				return $ Response True [] [f y]		
 
 data Rs = RConto Int deriving (Show,Typeable)
 
