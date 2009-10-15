@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, DeriveDataTypeable, MultiParamTypeClasses, NoMonomorphismRestriction #-}
+{-# LANGUAGE ScopedTypeVariables, FunctionalDependencies,DeriveDataTypeable, MultiParamTypeClasses, NoMonomorphismRestriction #-}
 import Control.Monad.State
 import Data.Char
 import Data.Typeable
@@ -13,6 +13,18 @@ import Debug.Trace
 data GQuery = Apri String | Chiudi String deriving (Typeable)
 data GState = GState Int [(String,Int)] 	
 
+class SMClass s e => Serializable s' t s e | s' -> t  where
+	rebuild :: s -> e -> t -> STM s'
+	destroy :: s' -> t
+
+instance Serializable GState GState () () where
+	rebuild _ _ g = return g
+	destroy = id 
+
+instance Serializable HState (Int,Int) GState GQuery where
+	rebuild x Apri (x,y) = do
+		g <- newTVar x	 
+		
 continue = return $ Response True [] []
 
 instance SMClass GState GQuery where
