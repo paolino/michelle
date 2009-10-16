@@ -74,7 +74,7 @@ evs =	[	le $ Apri "ciao",
 	]
 main = do
 	hSetBuffering stdout LineBuffering
-	(input,_,oqr) <- actors $ SMr (Just $ GState 0 []) ()
+	Handles input _ oqr _ _ <- actors $ SMr (Just $ GState 0 []) ()
 	forkIO . forM_ evs $ \x -> do
 		threadDelay 50000 
 		input x 

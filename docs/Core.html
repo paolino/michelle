@@ -187,15 +187,67 @@
 >actors</A
 > :: <A HREF="Core.html#t%3ASMr"
 >SMr</A
-> -&gt; IO (Either <A HREF="Core.html#t%3AE"
+> -&gt; IO <A HREF="Core.html#t%3AHandles"
+>Handles</A
+></TD
+></TR
+><TR
+><TD CLASS="s8"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><SPAN CLASS="keyword"
+>data</SPAN
+>  <A HREF="#t%3AHandles"
+>Handles</A
+>  = <A HREF="#v%3AHandles"
+>Handles</A
+> {<TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="recfield"
+><A HREF="#v%3Ainput"
+>input</A
+> :: Either <A HREF="Core.html#t%3AE"
 >E</A
 > <A HREF="Core.html#t%3AJ"
 >J</A
-> -&gt; IO (), IO <A HREF="Core.html#t%3AE"
+> -&gt; IO ()</TD
+></TR
+><TR
+><TD CLASS="recfield"
+><A HREF="#v%3AoutputE"
+>outputE</A
+> :: IO <A HREF="Core.html#t%3AE"
 >E</A
->, IO <A HREF="Core.html#t%3AJ"
+></TD
+></TR
+><TR
+><TD CLASS="recfield"
+><A HREF="#v%3AoutputJ"
+>outputJ</A
+> :: IO <A HREF="Core.html#t%3AJ"
 >J</A
->)</TD
+></TD
+></TR
+><TR
+><TD CLASS="recfield"
+><A HREF="#v%3Adump"
+>dump</A
+> :: IO [(Ctx, [<A HREF="Core.html#t%3AE"
+>E</A
+>])]</TD
+></TR
+><TR
+><TD CLASS="recfield"
+><A HREF="#v%3Aload"
+>load</A
+> :: [(Ctx, [<A HREF="Core.html#t%3AE"
+>E</A
+>])] -&gt; IO ()</TD
+></TR
+></TABLE
+>}</TD
 ></TR
 ></TABLE
 ></TD
@@ -229,7 +281,7 @@
 ><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
 ><TR
 ><TD CLASS="ndoc"
->Query events, these cannot be serialized and will be discarded on serializations, typically queries. Don't use them to modify states !
+>Query events, these cannot be serialized and will be discarded on serializations, typically queries. Don't use them to modify states ! These events are not persistent until processed.
 </TD
 ></TR
 ><TR
@@ -301,7 +353,7 @@
 ><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
 ><TR
 ><TD CLASS="ndoc"
->Events received. the Read and Show constraints (BUG) must be replaced with some more clever serialization class. Also consider to separate unserializable events (HINT) 
+>Events which counts. the Read and Show constraints could be replaced with some more clever serialization class. These events are persistent , until processed
 </TD
 ></TR
 ><TR
@@ -428,7 +480,7 @@
 ><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
 ><TR
 ><TD CLASS="ndoc"
->interface for a module to partecipate , step function is computed on every event received which is the right type :: e for the module. r parameter is the read only environment for the module. A read only parameter is necessary because interactions with supermodules are generally not serializable , usually STM computations. To deserialize a module the r parameter is recreated firing the event responsable for the module creation in a rebuilt context. If r was included in the  mutable state we couldn't  rebuild it without firing all the events caught by the module before serialization.
+>interface for a module to partecipate , make or query function is computed on every event received which is the right type (:: e) or (:: j) for the module. r parameter is the read only environment for the module. A read only parameter is necessary because interactions with supermodules are generally not serializable , usually STM computations. To deserialize a module the r parameter is recreated firing the event responsable for the module creation in a rebuilt context. If r was included in the  mutable state we couldn't  rebuild it without firing all the events caught by the module before serialization.
 </TD
 ></TR
 ><TR
@@ -450,13 +502,47 @@
 ></A
 ><B
 >make</B
-> :: r -&gt; TVar (Maybe s) -&gt; e -&gt; STM ([<A HREF="Core.html#t%3ASMr"
+></TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="arg"
+>:: r</TD
+><TD CLASS="rdoc"
+>the read-only environment for the module
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+>-&gt; TVar (Maybe s)</TD
+><TD CLASS="rdoc"
+>the mutable state for the module, Nothing is for a unresponsive module
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+>-&gt; e</TD
+><TD CLASS="rdoc"
+>the event to process
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+>-&gt; STM ([<A HREF="Core.html#t%3ASMr"
 >SMr</A
 >], [Either <A HREF="Core.html#t%3AE"
 >E</A
 > <A HREF="Core.html#t%3AJ"
 >J</A
 >])</TD
+><TD CLASS="rdoc"
+>a new set of submodules and new events to broadcast
+</TD
+></TR
+></TABLE
+></TD
 ></TR
 ><TR
 ><TD CLASS="s8"
@@ -470,11 +556,45 @@
 ></A
 ><B
 >query</B
-> :: r -&gt; Maybe s -&gt; j -&gt; STM [Either <A HREF="Core.html#t%3AE"
+></TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="arg"
+>:: r</TD
+><TD CLASS="rdoc"
+>the read-only environment for the module
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+>-&gt; Maybe s</TD
+><TD CLASS="rdoc"
+>the state in readonly fashon
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+>-&gt; j</TD
+><TD CLASS="rdoc"
+>the event to process
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+>-&gt; STM [Either <A HREF="Core.html#t%3AE"
 >E</A
 > <A HREF="Core.html#t%3AJ"
 >J</A
 >]</TD
+><TD CLASS="rdoc"
+>new events to broadcast
+</TD
+></TR
+></TABLE
+></TD
 ></TR
 ></TABLE
 ></TD
@@ -555,20 +675,146 @@
 >actors</B
 > :: <A HREF="Core.html#t%3ASMr"
 >SMr</A
-> -&gt; IO (Either <A HREF="Core.html#t%3AE"
->E</A
-> <A HREF="Core.html#t%3AJ"
->J</A
-> -&gt; IO (), IO <A HREF="Core.html#t%3AE"
->E</A
->, IO <A HREF="Core.html#t%3AJ"
->J</A
->)</TD
+> -&gt; IO <A HREF="Core.html#t%3AHandles"
+>Handles</A
+></TD
 ></TR
 ><TR
 ><TD CLASS="doc"
 >the main IO function which fires and kill the actors
 </TD
+></TR
+><TR
+><TD CLASS="s15"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><SPAN CLASS="keyword"
+>data</SPAN
+>  <A NAME="t:Handles"
+><A NAME="t%3AHandles"
+></A
+></A
+><B
+>Handles</B
+>  </TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="ndoc"
+>what we need to control the system
+</TD
+></TR
+><TR
+><TD CLASS="section4"
+>Constructors</TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="5" CELLPADDING="0"
+><TR
+><TD CLASS="arg"
+><A NAME="v:Handles"
+><A NAME="v%3AHandles"
+></A
+></A
+><B
+>Handles</B
+></TD
+><TD CLASS="rdoc"
+></TD
+></TR
+><TR
+><TD CLASS="body" COLSPAN="2"
+><TABLE CLASS="vanilla" CELLSPACING="1" CELLPADDING="0"
+><TR
+><TD CLASS="arg"
+><A NAME="v:input"
+><A NAME="v%3Ainput"
+></A
+></A
+><B
+>input</B
+> :: Either <A HREF="Core.html#t%3AE"
+>E</A
+> <A HREF="Core.html#t%3AJ"
+>J</A
+> -&gt; IO ()</TD
+><TD CLASS="rdoc"
+>accept an event
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+><A NAME="v:outputE"
+><A NAME="v%3AoutputE"
+></A
+></A
+><B
+>outputE</B
+> :: IO <A HREF="Core.html#t%3AE"
+>E</A
+></TD
+><TD CLASS="rdoc"
+>wait for an E
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+><A NAME="v:outputJ"
+><A NAME="v%3AoutputJ"
+></A
+></A
+><B
+>outputJ</B
+> :: IO <A HREF="Core.html#t%3AJ"
+>J</A
+></TD
+><TD CLASS="rdoc"
+>wait for an J
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+><A NAME="v:dump"
+><A NAME="v%3Adump"
+></A
+></A
+><B
+>dump</B
+> :: IO [(Ctx, [<A HREF="Core.html#t%3AE"
+>E</A
+>])]</TD
+><TD CLASS="rdoc"
+>TODO 
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+><A NAME="v:load"
+><A NAME="v%3Aload"
+></A
+></A
+><B
+>load</B
+> :: [(Ctx, [<A HREF="Core.html#t%3AE"
+>E</A
+>])] -&gt; IO ()</TD
+><TD CLASS="rdoc"
+>TODO
+</TD
+></TR
+></TABLE
+></TD
+></TR
+></TABLE
+></TD
+></TR
+></TABLE
+></TD
 ></TR
 ><TR
 ><TD CLASS="s15"

@@ -9,11 +9,11 @@ git:
 	git add LICENSE
 	git add makefile
 	git add docs
-	haddock -o docs -h *.hs	
 	git commit
 	git push
 	
-
+doc:
+	haddock -o docs -h *.hs	
 edit:
 	gvim *.hs README LICENSE makefile
 
