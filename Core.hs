@@ -1,8 +1,8 @@
-{-# LANGUAGE ExistentialQuantification , MultiParamTypeClasses, FunctionalDependencies, ViewPatterns#-}
+{-# LANGUAGE ExistentialQuantification ,NoMonomorphismRestriction,  MultiParamTypeClasses, FunctionalDependencies, ViewPatterns#-}
 
 
 
-module Core 
+module Core (J (..) , rj , E (..), le , SMr (..)  , Module (..), actors)
 	where
 import Control.Monad
 import Data.Typeable
@@ -97,6 +97,14 @@ register t ch c e (SMr s r) = do
 	ty <- insert tx cx (SMt ts) e
 	writeTVar t ty
 	writeTChan ch (SMrt ts r,c) 
+-- | shortcut for Left . E
+le :: (Show a, Read a, Typeable a) => a -> Either E b
+le = Left . E
+
+-- | shortcut for Right . J
+rj :: (Typeable a1) => a1 -> Either a J
+rj = Right . J
+
 
 -- | the main IO function which fires and kill the actors
 actors :: SMr -> IO (Either E J -> IO (), IO E,IO J)

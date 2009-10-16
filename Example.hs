@@ -7,7 +7,6 @@ import Data.List
 import Core 
 import System.IO
 import Data.Either
-import Launch
 import Control.Concurrent
 import Control.Concurrent.STM
 import Debug.Trace
@@ -66,18 +65,18 @@ waitRs c = do
 
 
 continue = return ([],[])
-evs =	[	Left . E $ Apri "ciao",
-		Left . E $ Aggiorna 0 4,
-		Left . E $ Aggiorna 0 3,
-		Right . J $ Conto 0 (J . RConto), 
-		Left . E $ Chiudi "ciao", 
-		Left . E $ Aggiorna 0 (-1)
+evs =	[	le $ Apri "ciao",
+		le $ Aggiorna 0 4,
+		le $ Aggiorna 0 3,
+		rj $ Conto 0 (J . RConto), 
+		le $ Chiudi "ciao", 
+		le $ Aggiorna 0 (-1)
 	]
 main = do
 	hSetBuffering stdout LineBuffering
 	(input,_,oqr) <- actors $ SMr (Just $ GState 0 []) ()
 	forkIO . forM_ evs $ \x -> do
-		-- threadDelay 50000 
+		threadDelay 50000 
 		input x 
 
 	waitRs oqr
