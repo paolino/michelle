@@ -8,6 +8,7 @@ git:
 	git add README
 	git add LICENSE
 	git add makefile
+	git add docs
 	haddock -o docs -h *.hs	
 	git commit
 	git push
