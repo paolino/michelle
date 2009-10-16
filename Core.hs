@@ -29,6 +29,9 @@ data J = forall j . Typeable j => J j
 rj :: Typeable a1 => a1 -> Either a J
 rj = Right . J
 
+-- | A channel for both types of events
+type Events = TChan (Either E J)
+
 -- | Existential state box. This and the other boxes are used to store and move around modules data
 data SMs = forall r s e j. (Show e, Read e, Typeable j, Typeable e, Typeable s, Module r s e j, Read s, Show s) 
 	=> SMs (Maybe s)
@@ -38,9 +41,9 @@ data SMr = forall r s e j. (Show e, Read e, Typeable j, Typeable e, Typeable s, 
 -- | Existential mutable state box
 data SMt = forall r s e j. (Show e, Read e, Typeable j, Typeable e, Typeable s, Module r s e j, Read s, Show s) 
 	=> SMt (TVar (Maybe s))
--- | Existential mutable state and environment box
+-- | Existential mutable state , environment box
 data SMrt = forall r s e j. (Show e, Read e, Typeable j, Typeable e, Typeable s, Module r s e j, Read s, Show s) 
-	=> SMrt (TVar (Maybe s)) r
+	=> SMrt (TVar (Maybe s)) r 
 
 --------------------------------------------------------------------------
 ----------------- Modules interface to the library------------------------
@@ -58,7 +61,7 @@ class Module r s e j | s -> r, s r -> e, s r -> j where
 		-> Maybe s 		-- ^ the state in readonly fashon
 		-> j 			-- ^ the event to process
 		-> STM [Either E J]	-- ^ new events to broadcast
-
+	zeroenv :: r			-- ^ necessary only for the root node
 
 -- | The context for a node holds what is necessary in a sanely rebuilt tree for reborning  a module, aka adding a node to a tree. This data is only there for deserialization.'E' is the event happened, which should be serializable. [SMs] are the states of the parents collected during 'r' creation. see insert
 type Ctx = (E,[SMs])
@@ -75,6 +78,7 @@ data Node = Node {
 	v :: SMt , 	-- ^ the cell state of the referenced module
 	ctx :: Ctx , 	-- ^ its creation context
 	coo :: TCoo, 	-- ^ its coordinates cell
+	evs :: Events, 	-- ^ its meaninful events channel
 	ns :: [Node]	-- ^ submodules, modules created from events processed by this module
 	} 
 
@@ -86,7 +90,7 @@ substM xs i f = let y:ys = drop i xs in do -- BUG : Irrefutable pattern failed t
 -- xs !!! n = listToMaybe . drop n $ xs
 
 -- | A channel to store new borning . In addition to the state cell is the read only part which will remain closed in the spawned thread, as it's not stored in the modules tree. Finally the coordinates cell of the mother module
-type Borning = TChan (SMrt,TCoo)
+type Borning = TChan (SMrt,TCoo,Events)
 
 -- | The tree of modules is accessed concurrently by actors for register and unregister actions
 type NodeT = TVar Node
@@ -100,83 +104,99 @@ register 	:: NodeT 	-- ^ the tree which the module is the top
 		-> SMr		-- ^ environment and starting data for the new submodule 
 		-> STM ()	-- ^ 		
 
-register t ch c e (SMr s r) = do
+register t bch c e (SMr s r) = do
 	tx <- readTVar t
 	is <- readTVar c
 	ts <- newTVar s -- the SMt for the new node	
-	let 	f n@(Node x@(SMt tv) ctx tc rs) [] bs = do 
+	let 	f n@(Node x@(SMt tv) ctx tc ch rs) [] bs = do 
 			v <- readTVar tv
 			is' <- newTVar $ is ++ [length rs]
-			return . Node x ctx tc $ rs ++ [Node (SMt ts) (e,bs ++ [SMs v]) is' []]
-		f (Node _ _ _  []) _  _ = error "path too long"
-		f (Node x@(SMt tv) ctx tc rs) (i:is) bs = do
+			ch' <- dup'TChan ch
+			return . Node x ctx tc ch $ rs ++ [Node (SMt ts)  (e,bs ++ [SMs v]) is' ch' []]
+		f (Node _ _ _ _ []) _  _ = error "path too long"
+		f (Node x@(SMt tv) ctx tc ch rs) (i:is) bs = do
 			v <- readTVar tv
 			rs' <- substM rs i $ \t -> f t is (bs ++ [SMs v])
-			return . Node x ctx tc $ rs'
-	f tx is [] >>= writeTVar t 
-	writeTChan ch (SMrt ts r,c)
- 
+			return . Node x ctx tc ch $ rs'
+	n@(Node _ _ _ ch' _ ) <- f tx is [] 
+	writeTVar t n  
+	writeTChan bch (SMrt ts r,c,ch')
+
+-- | the value of a node ready for serializing
+data Serial = Serial 
+	SMs (Maybe s) 	-- ^ module state 
+	Coo		-- ^ node coordinates
+	Ctx 		-- ^ context for it
+	Events		-- ^ events to be processed
+
+-- | flattening the tree
+flatten :: Node -> STM [Serial]
+flatten (Node (SMt x) ctx tc ch rs) = do
+	ejs <- contents ch
+	c <- readTVar tc
+	s <- readTVar x 
+	(Serial s c ctx ejs :) `fmap` concat `fmap` mapM flatten rs 
+
+-- | rebuild a tree
+rebuild :: Events -> Borning -> [Serial] -> STM Node
+rebuild ch bch xs = do
+	let new stree <- do
+		ts <- newTVar s
+		tc <- newTVar []
+		ch' <- dup'TChan events
+		writeTChan control (SMrt ts r, tc, ch')
+		newTVar $ Node (SMt ts) (E (),[]) tc ch' []
+
 -- | what we need to control the system
 data Handles = Handles {
 	input :: Either E J -> IO (),	-- ^ accept an event
-	outputE :: IO E ,	-- ^ wait for an E
-	outputJ :: IO J ,	-- ^ wait for an J
+	output :: IO (Either E J) ,	-- ^ wait for an event
 	dump :: IO [(Ctx,[E])], 	-- ^ TODO 
 	load :: [(Ctx,[E])] -> IO ()	-- ^ TODO
 	}
 
 -- | the main IO function which fires and kill the actors
-actors :: SMr -> IO Handles
-actors sr@(SMr s r) = do
-	mevents <- atomically $ newTChan 
-	qevents <- atomically $ newTChan 
+actors :: [Serial] -> IO Handles
+actors boots = do
+	events <- atomically $ newTChan 
 	control <- atomically $ newTChan 
-	tree <- atomically $ do
-		ts <- newTVar s
-		tc <- newTVar  $ []
-		writeTChan control (SMrt ts r, tc)
-		newTVar $ Node (SMt ts) (E (),[]) tc []
-
+	tree <- atomically $ rebuild events controls boots
 	forkIO . forever $ do
-
-		(SMrt ts r, tc)  <- atomically $ readTChan control
-
-		mcopy <- atomically $ dup'TChan mevents
-		qcopy <- atomically $ dup'TChan qevents
-		let send ejs = do
-			mapM_ (writeTChan mcopy) $ lefts ejs
-			mapM_ (writeTChan qcopy) $ rights ejs
-
-		qth <- forkIO . forever . atomically $ do 
-			J j <- readTChan qcopy
-			case cast j of
-				Nothing -> return ()
-				Just j -> do
-					ms <- readTVar ts 
-					query r ms j >>= send
+		(SMrt ts r , tc, ch )  <- atomically $ readTChan control
 		forkIO . forever $ do
 			kth <- atomically $ do
-				E e <- readTChan mcopy
-				case cast e of
-					Nothing -> return False
-					Just e -> do
-						(smrs, ejs) <- make r ts e  
-						send ejs
-						mapM_ (register tree control tc (E e)) smrs
-						maybe True (const False) `fmap` readTVar ts 
-			when kth $ myThreadId >>= killThread >> killThread qth
+				ej <- readTChan ch
+				case ej of
+					Left (E e) -> case cast e of
+						Nothing -> return False
+						Just e -> do
+							(smrs, ejs) <- make r ts e  
+							mapM_ (writeTChan ch) ejs
+							mapM_ (register tree control tc (E e)) smrs
+							maybe True (const False) `fmap` readTVar ts 
+					Right (J j) -> case cast j of
+						Nothing -> return False
+						Just j -> do 
+							ms <- readTVar ts
+							ejs <- query r ms j
+							mapM_ (writeTChan ch) ejs
+							return False
+			when kth $ myThreadId >>= killThread 
 			return ()
-	let 	input (Left x) = atomically $ writeTChan mevents x
-		input (Right x) = atomically $ writeTChan qevents x
+		
 	return $ Handles 
-		input
-		(atomically $ readTChan mevents)
-		(atomically $ readTChan qevents)
+		(atomically . writeTChan events)
+		(atomically $ readTChan events)
 		undefined
 		undefined
 -- | un duplicatore di canale che copia anche gli eventi presenti
 dup'TChan t = do	
 	c <- dupTChan t
+	rs <- contents t
+	mapM_ (unGetTChan c) rs
+	return c
+
+contents t = do 
 	let flush = do 
 		z <- isEmptyTChan t
 		case z of 
@@ -184,7 +204,6 @@ dup'TChan t = do
 					fmap (x:) flush
 			True -> return []
 	rs <- fmap reverse $ flush
-	mapM_ (unGetTChan c) rs
 	mapM_ (unGetTChan t) rs
-	return c
+	return rs
 
