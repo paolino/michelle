@@ -124,10 +124,10 @@ register t bch c e (SMr s r) = do
 
 -- | the value of a node ready for serializing
 data Serial = Serial 
-	SMs (Maybe s) 	-- ^ module state 
+	SMs 	 	-- ^ module state 
 	Coo		-- ^ node coordinates
 	Ctx 		-- ^ context for it
-	Events		-- ^ events to be processed
+	[Either E J]	-- ^ events to be processed
 
 -- | flattening the tree
 flatten :: Node -> STM [Serial]
@@ -135,18 +135,14 @@ flatten (Node (SMt x) ctx tc ch rs) = do
 	ejs <- contents ch
 	c <- readTVar tc
 	s <- readTVar x 
-	(Serial s c ctx ejs :) `fmap` concat `fmap` mapM flatten rs 
+	(Serial (SMs s) c ctx ejs :) `fmap` concat `fmap` mapM flatten rs 
 
 -- | rebuild a tree
 rebuild :: Events -> Borning -> [Serial] -> STM Node
-rebuild ch bch xs = do
-	let new stree <- do
-		ts <- newTVar s
-		tc <- newTVar []
-		ch' <- dup'TChan events
-		writeTChan control (SMrt ts r, tc, ch')
-		newTVar $ Node (SMt ts) (E (),[]) tc ch' []
-
+rebuild = undefined
+{-
+rebuilding 
+-}
 -- | what we need to control the system
 data Handles = Handles {
 	input :: Either E J -> IO (),	-- ^ accept an event
@@ -156,11 +152,16 @@ data Handles = Handles {
 	}
 
 -- | the main IO function which fires and kill the actors
-actors :: [Serial] -> IO Handles
-actors boots = do
+actors :: SMr -> IO Handles
+actors (SMr s r) = do
 	events <- atomically $ newTChan 
 	control <- atomically $ newTChan 
-	tree <- atomically $ rebuild events controls boots
+	tree <- atomically $	do
+		ts <- newTVar s
+		tc <- newTVar []
+		ch' <- dup'TChan events
+		writeTChan control (SMrt ts r, tc, ch')
+		newTVar $ Node (SMt ts) (E (),[]) tc ch' []
 	forkIO . forever $ do
 		(SMrt ts r , tc, ch )  <- atomically $ readTChan control
 		forkIO . forever $ do
