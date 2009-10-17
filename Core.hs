@@ -97,37 +97,38 @@ type NodeT = TVar Node
 
 -- | Modules register subnodes with this. They pass their mutable position to identify theirself on the tree, the initial state for the submodule along with its only-read data in SMr, and the event responsible for the registering aka the event the are processing (possible SECURITY bug, we should know which event they are processing). To insert a node we travel down the tree to the point of attachment described in c :: Coo , while collecting actual states. This also means we have a fairly high degree of starving as we need silence along the path to the attachment point. The actual states collected, with the passed event e :: E forms the context for the new node. 
 
-register 	:: NodeT 	-- ^ the tree which the module is the top
-		-> Borning	-- ^ the channel to put new modules to start	
-		-> TCoo		-- ^ coordinates of the mother module cell
-		-> E		-- ^ the guilty event for this insertion                                    	
+register 	:: Node 	-- ^ the tree which the module is the top
+		-> Borning
+		-> Coo		-- ^ coordinates of the mother module cell
+		-> Either E J		-- ^ the guilty event for this insertion                                    	
 		-> SMr		-- ^ environment and starting data for the new submodule 
-		-> STM ()	-- ^ 		
+		-> STM Node	-- ^ 		
 
-register t bch c e (SMr s r) = do
-	tx <- readTVar t
-	is <- readTVar c
-	ts <- newTVar s -- the SMt for the new node	
+register t control is (Left e) (SMr s r) = do
+	ts <- newTVar s -- the SMt for the new node
+	maiale <- newTVar undefined	
 	let 	f n@(Node x@(SMt tv) ctx tc ch rs) [] bs = do 
 			v <- readTVar tv
 			is' <- newTVar $ is ++ [length rs]
 			ch' <- dup'TChan ch
+			writeTVar maiale (is',ch')
 			return . Node x ctx tc ch $ rs ++ [Node (SMt ts)  (e,bs ++ [SMs v]) is' ch' []]
 		f (Node _ _ _ _ []) _  _ = error "path too long"
 		f (Node x@(SMt tv) ctx tc ch rs) (i:is) bs = do
 			v <- readTVar tv
 			rs' <- substM rs i $ \t -> f t is (bs ++ [SMs v])
 			return . Node x ctx tc ch $ rs'
-	n@(Node _ _ _ ch' _ ) <- f tx is [] 
-	writeTVar t n  
-	writeTChan bch (SMrt ts r,c,ch')
+	t' <- f t is []
+	(is',ch') <- readTVar maiale  
+	writeTChan control (SMrt ts r,is',ch')	
+	return t'
 
 -- | the value of a node ready for serializing
 data Serial = Serial 
-	SMs 	 	-- ^ module state 
+	SMs  	-- ^ module state 
 	Coo		-- ^ node coordinates
 	Ctx 		-- ^ context for it
-	[Either E J]	-- ^ events to be processed
+	[Either E J] 		-- ^ events to be processed
 
 -- | flattening the tree
 flatten :: Node -> STM [Serial]
@@ -140,9 +141,7 @@ flatten (Node (SMt x) ctx tc ch rs) = do
 -- | rebuild a tree
 rebuild :: Events -> Borning -> [Serial] -> STM Node
 rebuild = undefined
-{-
-rebuilding 
--}
+
 -- | what we need to control the system
 data Handles = Handles {
 	input :: Either E J -> IO (),	-- ^ accept an event
@@ -151,37 +150,47 @@ data Handles = Handles {
 	load :: [(Ctx,[E])] -> IO ()	-- ^ TODO
 	}
 
+
+fire	:: (Read e, Show e, Module r s e j, Typeable e, Typeable j) 
+	=> r			-- ^ environment for the new nodes
+	-> TVar (Maybe s)	-- ^ cell of the module state
+	-> Either E J		-- ^ the event to process
+	-> STM ([SMr],[Either E J])
+
+fire  r ts (Left (E e)) =  case cast e of
+	Nothing -> return ([],[])
+	Just e -> make r ts e  
+
+fire r ts (Right (J j)) = case cast j of
+	Nothing -> return ([],[])
+	Just j -> do 
+		ms <- readTVar ts
+		(,) [] `fmap` query r ms j
+
 -- | the main IO function which fires and kill the actors
-actors :: SMr -> IO Handles
+actors 	:: SMr 		-- ^ environment and state for the root module
+	-> IO Handles   -- ^ communication channels with the modules
 actors (SMr s r) = do
 	events <- atomically $ newTChan 
 	control <- atomically $ newTChan 
-	tree <- atomically $	do
+	tree <- atomically $ do 
+		events' <- dup'TChan events
 		ts <- newTVar s
 		tc <- newTVar []
-		ch' <- dup'TChan events
-		writeTChan control (SMrt ts r, tc, ch')
-		newTVar $ Node (SMt ts) (E (),[]) tc ch' []
+		writeTChan control (SMrt ts r, tc, events') 
+		newTVar $ Node (SMt ts) (E (),[]) tc events' [] 
 	forkIO . forever $ do
 		(SMrt ts r , tc, ch )  <- atomically $ readTChan control
 		forkIO . forever $ do
 			kth <- atomically $ do
-				ej <- readTChan ch
-				case ej of
-					Left (E e) -> case cast e of
-						Nothing -> return False
-						Just e -> do
-							(smrs, ejs) <- make r ts e  
-							mapM_ (writeTChan ch) ejs
-							mapM_ (register tree control tc (E e)) smrs
-							maybe True (const False) `fmap` readTVar ts 
-					Right (J j) -> case cast j of
-						Nothing -> return False
-						Just j -> do 
-							ms <- readTVar ts
-							ejs <- query r ms j
-							mapM_ (writeTChan ch) ejs
-							return False
+					ej <- readTChan ch 
+					(smrs,ejs) <- fire r ts ej
+					mapM_ (writeTChan events) ejs
+					is <- readTVar tc
+					t <- readTVar tree
+					t' <- foldM (\t -> register t control is ej) t smrs
+					writeTVar tree t'
+					maybe True (const False) `fmap` readTVar ts 
 			when kth $ myThreadId >>= killThread 
 			return ()
 		

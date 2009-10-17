@@ -56,12 +56,14 @@ instance Module HEnv HState HMake HQuery where
 
 data Rs = RConto Int deriving (Show,Typeable)
 
-waitRs :: IO J -> IO ()
+waitRs :: IO (Either E J) -> IO ()
 waitRs c = do
-	J l <- c 
-        case cast l `asTypeOf` Just (undefined :: Rs) of
-                Nothing -> waitRs c 
-                Just y -> print y
+	q <- c 
+	case q of
+		Left _ ->  waitRs c
+		Right (J l) -> case cast l `asTypeOf` Just (undefined :: Rs) of
+			Nothing -> waitRs c 
+			Just y -> print y
 
 
 continue = return ([],[])
@@ -74,9 +76,9 @@ evs =	[	le $ Apri "ciao",
 	]
 main = do
 	hSetBuffering stdout LineBuffering
-	Handles input _ oqr _ _ <- actors $ SMr (Just $ GState 0 []) ()
+	Handles input output _ _ <- actors $ SMr (Just $ GState 0 []) ()
 	forkIO . forM_ evs $ \x -> do
 		threadDelay 50000 
 		input x 
 
-	waitRs oqr
+	waitRs output
