@@ -61,7 +61,7 @@ class Module r s e j | s -> r, s r -> e, s r -> j where
 		-> Maybe s 		-- ^ the state in readonly fashon
 		-> j 			-- ^ the event to process
 		-> STM [Either E J]	-- ^ new events to broadcast
-	zeroenv :: r			-- ^ necessary only for the root node
+	-- zeroenv :: r			-- ^ necessary only for the root node
 
 -- | The context for a node holds what is necessary in a sanely rebuilt tree for reborning  a module, aka adding a node to a tree. This data is only there for deserialization.'E' is the event happened, which should be serializable. [SMs] are the states of the parents collected during 'r' creation. see insert
 type Ctx = (E,[SMs])
@@ -106,7 +106,7 @@ register 	:: Node 	-- ^ the tree which the module is the top
 
 register t control is (Left e) (SMr s r) = do
 	ts <- newTVar s -- the SMt for the new node
-	maiale <- newTVar undefined	
+	maiale <- newTVar undefined	-- can't we use runContT ? 
 	let 	f n@(Node x@(SMt tv) ctx tc ch rs) [] bs = do 
 			v <- readTVar tv
 			is' <- newTVar $ is ++ [length rs]
@@ -150,18 +150,17 @@ data Handles = Handles {
 	load :: [(Ctx,[E])] -> IO ()	-- ^ TODO
 	}
 
+-- | simple wrapper around make/query calls. Disambiguate the type of event to process and choose the right call
 
 fire	:: (Read e, Show e, Module r s e j, Typeable e, Typeable j) 
-	=> r			-- ^ environment for the new nodes
-	-> TVar (Maybe s)	-- ^ cell of the module state
+	=> SMrt			-- ^ environment and state for the module to accept the event 
 	-> Either E J		-- ^ the event to process
 	-> STM ([SMr],[Either E J])
 
-fire  r ts (Left (E e)) =  case cast e of
+fire  (SMrt ts r) (Left (E e)) =  case cast e of
 	Nothing -> return ([],[])
 	Just e -> make r ts e  
-
-fire r ts (Right (J j)) = case cast j of
+fire (SMrt ts r) (Right (J j)) = case cast j of
 	Nothing -> return ([],[])
 	Just j -> do 
 		ms <- readTVar ts
@@ -180,11 +179,11 @@ actors (SMr s r) = do
 		writeTChan control (SMrt ts r, tc, events') 
 		newTVar $ Node (SMt ts) (E (),[]) tc events' [] 
 	forkIO . forever $ do
-		(SMrt ts r , tc, ch )  <- atomically $ readTChan control
+		(smrts @(SMrt ts r) , tc, ch )  <- atomically $ readTChan control
 		forkIO . forever $ do
 			kth <- atomically $ do
 					ej <- readTChan ch 
-					(smrs,ejs) <- fire r ts ej
+					(smrs,ejs) <- fire smrts ej
 					mapM_ (writeTChan events) ejs
 					is <- readTVar tc
 					t <- readTVar tree
