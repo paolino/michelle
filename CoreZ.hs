@@ -11,6 +11,7 @@ import Control.Concurrent
 import Control.Monad.Maybe
 import Data.Either
 import Debug.Trace
+import Data.Tree.Zipper
 
 
 -- | Events which count. the Read and Show constraints could be replaced with some more clever serialization class. These events are persistent , until processed
@@ -63,11 +64,8 @@ class Module r s e j | s -> r, s r -> e, s r -> j where
 		-> STM [Either E J]	-- ^ new events to broadcast
 	-- zeroenv :: r			-- ^ necessary only for the root node
 
--- | the twin index among twins
-type Twin = Int
-
 -- | The context for a node holds what is necessary in a sanely rebuilt tree for reborning  a module, aka adding a node to a tree. This data is only there for deserialization.'E' is the event happened, which should be serializable. [SMs] are the states of the parents collected during 'r' creation. see insert
-type Ctx = (E,[SMs],Twin)
+type Ctx = (E,[SMs],Int)
 
 -- | Index of a node. A list of indices to reach the nodes in the graph. Each representing which branch to choose starting from top node. 
 type Coo = [Int] 
@@ -84,6 +82,48 @@ data Node = Node {
 	evs :: Events, 	-- ^ its meaninful events channel
 	ns :: [Node]	-- ^ submodules, modules created from events processed by this module
 	} 
+
+data Load = Load {
+	v :: SMrt , 	-- ^ the cell state of the referenced module
+	ctx :: Ctx , 	-- ^ its creation context
+	coo :: TCoo, 	-- ^ its coordinates cell, useful for communication between module thread and tree
+	evs :: Events, 	-- ^ its duplicate of the events channel
+	} 
+
+type Store = TreeLoc Load
+store0 = fromTree (return undefined)
+
+restore :: Borning -> [Serial] -> STM Store
+restore bs = foldM (restore1 bs) store0 
+
+step :: Store -> (Either SMs (TChan SMs),is) -> STM Store
+step t (q, j) t = do 
+	let	SMt r = v . getLabel t 
+	case q of 
+		Left (SMs s) -> writeTVar r s 
+		Right ch -> readTVar r >>= writeTChan ch . SMs
+	case getChild j t of 
+		Nothing -> error "resuming error, index out of range in selecting path" 
+		Just t' -> return t'
+
+restore :: Events -> Borning -> Store -> Serial -> STM Store
+restore evs bs t (Serial (SMs s) isms c@(e,(SMs sm),j) ejs) = do
+	t' <- foldM step (root t) . map (first Left) $ isms
+	let Load k@(SMrt ts r) _ _ _ = getLabel t'
+	writeTVar ts sm
+	(sms',_) <- fire k (Left e)
+	case listToMaybe . drop j $ sms' of
+		Nothing -> error "resuming error , index out of range in selecting twin"
+		Just (SMr _ r) -> do
+			tc <- newTVar
+			writeTVar tc $ map fst isms ++ [lenght $ subForest t']
+			nt <- dup'TChan evs
+			mapM_ (unGetTChan nt) ejs
+			let 	smr = SMr s r
+				l = Load smr c tc nt
+			writeTChan bs (smr, tc, nt) 
+			return $ insertDownLast (return l) t'
+
 
 -- | branch forward substitution (TODO : intercept index out of range)
 substM :: Monad m => [a] -> Int -> (a -> m a) -> m [a]
@@ -104,10 +144,10 @@ register 	:: Node 	-- ^ the tree which the module is the top
 		-> Borning
 		-> Coo		-- ^ coordinates of the mother module cell
 		-> Either E J		-- ^ the guilty event for this insertion                                    	
-		-> (SMr,Twin)		-- ^ environment and starting data for the new submodule 
+		-> SMr		-- ^ environment and starting data for the new submodule 
 		-> STM Node	-- ^ 		
 
-register t control is (Left e) (SMr s r, g) = do
+register t control is (Left e) (SMr s r) = do
 	ts <- newTVar s -- the SMt for the new node
 	maiale <- newTVar undefined	-- can't we use runContT ? 
 	let 	f n@(Node x@(SMt tv) ctx tc ch rs) [] bs = do 
@@ -115,7 +155,7 @@ register t control is (Left e) (SMr s r, g) = do
 			is' <- newTVar $ is ++ [length rs]
 			ch' <- dup'TChan ch
 			writeTVar maiale (is',ch')
-			return . Node x ctx tc ch $ rs ++ [Node (SMt ts)  (e,bs ++ [SMs v],g) is' ch' []]
+			return . Node x ctx tc ch $ rs ++ [Node (SMt ts)  (e,bs ++ [SMs v]) is' ch' []]
 		f (Node _ _ _ _ []) _  _ = error "path too long"
 		f (Node x@(SMt tv) ctx tc ch rs) (i:is) bs = do
 			v <- readTVar tv
@@ -190,7 +230,7 @@ actors (SMr s r) = do
 					mapM_ (writeTChan events) ejs
 					is <- readTVar tc
 					t <- readTVar tree
-					(t',_) <- foldM (\t ( -> register t control is ej) t smrs
+					t' <- foldM (\t -> register t control is ej) t smrs
 					writeTVar tree t'
 					maybe True (const False) `fmap` readTVar ts 
 			when kth $ myThreadId >>= killThread 
