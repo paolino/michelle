@@ -2,16 +2,22 @@
 
 
 
-module Core (J (..) , rj , E (..), le , SMr (..)  , Module (..), actors, Handles (..))
+module CoreZ -- (J (..) , rj , E (..), le , SMr (..)  , Module (..), actors, Handles (..))
 	where
 import Control.Monad
+import Control.Applicative
+import Control.Arrow
 import Data.Typeable
 import Control.Concurrent.STM
 import Control.Concurrent
 import Control.Monad.Maybe
 import Data.Either
+import Data.Maybe
+import Data.List
 import Debug.Trace
 import Data.Tree.Zipper
+import Data.Tree
+import Lib (mapAccumM, dup'TChan, contents)
 
 
 -- | Events which count. the Read and Show constraints could be replaced with some more clever serialization class. These events are persistent , until processed
@@ -64,8 +70,24 @@ class Module r s e j | s -> r, s r -> e, s r -> j where
 		-> STM [Either E J]	-- ^ new events to broadcast
 	-- zeroenv :: r			-- ^ necessary only for the root node
 
--- | The context for a node holds what is necessary in a sanely rebuilt tree for reborning  a module, aka adding a node to a tree. This data is only there for deserialization.'E' is the event happened, which should be serializable. [SMs] are the states of the parents collected during 'r' creation. see insert
-type Ctx = (E,[SMs],Int)
+-- | simple wrapper around make/query calls. Disambiguate the type of event to process and choose the right call
+fire	:: SMrt			-- ^ environment and state for the module to accept the event 
+	-> Either E J		-- ^ the event to process
+	-> STM ([SMr],[Either E J])
+
+fire  (SMrt ts r) (Left (E e)) =  case cast e of
+	Nothing -> return ([],[])
+	Just e -> make r ts e  
+fire (SMrt ts r) (Right (J j)) = case cast j of
+	Nothing -> return ([],[])
+	Just j -> do 
+		ms <- readTVar ts
+		(,) [] `fmap` query r ms j
+
+-- | identify a module among the others, when they are resulting from a Module make action
+type Twin = Int
+-- | The context for a node holds what is necessary in a sanely rebuilt tree for reborning  a module, aka adding a node to a tree. This data is only there for deserialization.'E' is the event happened, which should be serializable. [SMs] are the states of the parents collected during 'r' creation. see insert. Twin identify the module among its brothers, on creation time.
+type Ctx = (E,[SMs],Twin)
 
 -- | Index of a node. A list of indices to reach the nodes in the graph. Each representing which branch to choose starting from top node. 
 type Coo = [Int] 
@@ -73,58 +95,39 @@ type Coo = [Int]
 -- | Mutable location for a Coo. Mutability is necessary as the tree can be pruned. This operation changes a well defined part of the tree coordinates
 type TCoo = TVar Coo
 
--- | The store for the active modules. This is a NTree where in each node we store a mutable cell for the node state, the context for serialization and the active submodules. A Nothing in the state signal a stopped module. Although a module can be stopped its presence in the tree can still be necessary if there are submodules still alive for their serialization. A pruning for full stopped branches is good before every serialization snapshot. 
-
-data Node = Node {
-	v :: SMt , 	-- ^ the cell state of the referenced module
-	ctx :: Ctx , 	-- ^ its creation context
-	coo :: TCoo, 	-- ^ its coordinates cell
-	evs :: Events, 	-- ^ its meaninful events channel
-	ns :: [Node]	-- ^ submodules, modules created from events processed by this module
-	} 
-
-data Load = Load {
-	v :: SMrt , 	-- ^ the cell state of the referenced module
-	ctx :: Ctx , 	-- ^ its creation context
-	coo :: TCoo, 	-- ^ its coordinates cell, useful for communication between module thread and tree
-	evs :: Events, 	-- ^ its duplicate of the events channel
-	} 
-
+-- | The memory for the modules. We store a mutable cell for the node state, the creation context and its mutable coordinates . A Nothing in the state signal a stopped module. Although a module can be stopped its presence in the tree can still be necessary if there are submodules still alive for their serialization. A pruning for full stopped branches is good before every serialization snapshot. 
+data Load = Load 
+	SMrt  	-- ^ the cell state of the referenced module
+	Ctx  	-- ^ its creation context
+	TCoo 	-- ^ its coordinates cell, useful for communication between module thread and tree
+	Events 	-- ^ its duplicate of the events channel
+	 
+tstate (Load x _ _ _) = x
+-- | Restoring operations involve some complex movement on the memory module tree. We use a zipper structure to relief some programming weight
 type Store = TreeLoc Load
-store0 = fromTree (return undefined)
 
-restore :: Borning -> [Serial] -> STM Store
-restore bs = foldM (restore1 bs) store0 
+-- | module istantiation values. This can happen after the tree has been rebuilt processing all Creations
+type Restoring = (SMs,[Either E J])
 
-step :: Store -> (Either SMs (TChan SMs),is) -> STM Store
-step t (q, j) t = do 
-	let	SMt r = v . getLabel t 
-	case q of 
-		Left (SMs s) -> writeTVar r s 
-		Right ch -> readTVar r >>= writeTChan ch . SMs
-	case getChild j t of 
+-- | channel for modules waiting to start
+type Borning = TChan Load
+
+-- | setting  state on a store node. The node is already there so its type is already fixed
+poke :: SMs -> Store -> STM ()
+poke (SMs s) t = do 
+	SMrt st  _ <- return . tstate . getLabel $ t 
+	case cast s of 
+		Nothing -> error "deserialization error, trying to push back a state"
+		Just s -> writeTVar st s 
+
+-- | going down a level in the store
+down :: Monad m => Twin -> Store -> m Store
+down j t = case getChild j t of 
 		Nothing -> error "resuming error, index out of range in selecting path" 
 		Just t' -> return t'
 
-restore :: Events -> Borning -> Store -> Serial -> STM Store
-restore evs bs t (Serial (SMs s) isms c@(e,(SMs sm),j) ejs) = do
-	t' <- foldM step (root t) . map (first Left) $ isms
-	let Load k@(SMrt ts r) _ _ _ = getLabel t'
-	writeTVar ts sm
-	(sms',_) <- fire k (Left e)
-	case listToMaybe . drop j $ sms' of
-		Nothing -> error "resuming error , index out of range in selecting twin"
-		Just (SMr _ r) -> do
-			tc <- newTVar
-			writeTVar tc $ map fst isms ++ [lenght $ subForest t']
-			nt <- dup'TChan evs
-			mapM_ (unGetTChan nt) ejs
-			let 	smr = SMr s r
-				l = Load smr c tc nt
-			writeTChan bs (smr, tc, nt) 
-			return $ insertDownLast (return l) t'
 
-
+{-
 -- | branch forward substitution (TODO : intercept index out of range)
 substM :: Monad m => [a] -> Int -> (a -> m a) -> m [a]
 substM xs i f = let y:ys = drop i xs in do -- BUG : Irrefutable pattern failed to avoi here
@@ -132,8 +135,7 @@ substM xs i f = let y:ys = drop i xs in do -- BUG : Irrefutable pattern failed t
 			return $ take i xs ++ [y'] ++ ys 
 -- xs !!! n = listToMaybe . drop n $ xs
 
--- | A channel to store new borning . In addition to the state cell is the read only part which will remain closed in the spawned thread, as it's not stored in the modules tree. Finally the coordinates cell of the mother module
-type Borning = TChan (SMrt,TCoo,Events)
+
 
 -- | The tree of modules is accessed concurrently by actors for register and unregister actions
 type NodeT = TVar Node
@@ -166,12 +168,6 @@ register t control is (Left e) (SMr s r) = do
 	writeTChan control (SMrt ts r,is',ch')	
 	return t'
 
--- | the value of a node ready for serializing
-data Serial = Serial 
-	SMs  	-- ^ module state 
-	Coo		-- ^ node coordinates
-	Ctx 		-- ^ context for it
-	[Either E J] 		-- ^ events to be processed
 
 -- | flattening the tree
 flatten :: Node -> STM [Serial]
@@ -193,21 +189,6 @@ data Handles = Handles {
 	load :: [(Ctx,[E])] -> IO ()	-- ^ TODO
 	}
 
--- | simple wrapper around make/query calls. Disambiguate the type of event to process and choose the right call
-
-fire	:: (Read e, Show e, Module r s e j, Typeable e, Typeable j) 
-	=> SMrt			-- ^ environment and state for the module to accept the event 
-	-> Either E J		-- ^ the event to process
-	-> STM ([SMr],[Either E J])
-
-fire  (SMrt ts r) (Left (E e)) =  case cast e of
-	Nothing -> return ([],[])
-	Just e -> make r ts e  
-fire (SMrt ts r) (Right (J j)) = case cast j of
-	Nothing -> return ([],[])
-	Just j -> do 
-		ms <- readTVar ts
-		(,) [] `fmap` query r ms j
 
 -- | the main IO function which fires and kill the actors
 actors 	:: SMr 		-- ^ environment and state for the root module
@@ -241,21 +222,5 @@ actors (SMr s r) = do
 		(atomically $ readTChan events)
 		undefined
 		undefined
--- | un duplicatore di canale che copia anche gli eventi presenti
-dup'TChan t = do	
-	c <- dupTChan t
-	rs <- contents t
-	mapM_ (unGetTChan c) rs
-	return c
 
-contents t = do 
-	let flush = do 
-		z <- isEmptyTChan t
-		case z of 
-			False -> do 	x <- readTChan t 
-					fmap (x:) flush
-			True -> return []
-	rs <- fmap reverse $ flush
-	mapM_ (unGetTChan t) rs
-	return rs
-
+-}

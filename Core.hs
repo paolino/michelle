@@ -190,7 +190,7 @@ actors (SMr s r) = do
 					mapM_ (writeTChan events) ejs
 					is <- readTVar tc
 					t <- readTVar tree
-					(t',_) <- foldM (\t ( -> register t control is ej) t smrs
+					(t',_) <- foldM (\t -> register t control is ej) t smrs
 					writeTVar tree t'
 					maybe True (const False) `fmap` readTVar ts 
 			when kth $ myThreadId >>= killThread 
