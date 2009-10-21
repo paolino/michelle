@@ -1,0 +1,832 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<!--Rendered using the Haskell Html Library v0.2-->
+<HTML
+><HEAD
+><META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8"
+><TITLE
+>Core</TITLE
+><LINK HREF="haddock.css" REL="stylesheet" TYPE="text/css"
+><SCRIPT SRC="haddock-util.js" TYPE="text/javascript"
+></SCRIPT
+><SCRIPT TYPE="text/javascript"
+>window.onload = function () {setSynopsis("mini_Core.html")};</SCRIPT
+></HEAD
+><BODY
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="topbar"
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD
+><IMG SRC="haskell_icon.gif" WIDTH="16" HEIGHT="16" ALT=" "
+></TD
+><TD CLASS="title"
+></TD
+><TD CLASS="topbut"
+><A HREF="index.html"
+>Contents</A
+></TD
+><TD CLASS="topbut"
+><A HREF="doc-index.html"
+>Index</A
+></TD
+></TR
+></TABLE
+></TD
+></TR
+><TR
+><TD CLASS="modulebar"
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD
+><FONT SIZE="6"
+>Core</FONT
+></TD
+></TR
+></TABLE
+></TD
+></TR
+><TR
+><TD CLASS="s15"
+></TD
+></TR
+><TR
+><TD CLASS="s15"
+></TD
+></TR
+><TR
+><TD CLASS="section1"
+>Synopsis</TD
+></TR
+><TR
+><TD CLASS="s15"
+></TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="decl"
+><SPAN CLASS="keyword"
+>data</SPAN
+>  <A HREF="#t%3AJ"
+>J</A
+>  = <SPAN CLASS="keyword"
+>forall</SPAN
+> j . Typeable j =&gt; <A HREF="#v%3AJ"
+>J</A
+> j</TD
+></TR
+><TR
+><TD CLASS="s8"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><A HREF="#v%3Arj"
+>rj</A
+> :: Typeable a1 =&gt; a1 -&gt; Either a <A HREF="Core.html#t%3AJ"
+>J</A
+></TD
+></TR
+><TR
+><TD CLASS="s8"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><SPAN CLASS="keyword"
+>data</SPAN
+>  <A HREF="#t%3AE"
+>E</A
+>  = <SPAN CLASS="keyword"
+>forall</SPAN
+> e . (Show e, Read e, Typeable e) =&gt; <A HREF="#v%3AE"
+>E</A
+> e</TD
+></TR
+><TR
+><TD CLASS="s8"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><A HREF="#v%3Ale"
+>le</A
+> :: (Show a, Read a, Typeable a) =&gt; a -&gt; Either <A HREF="Core.html#t%3AE"
+>E</A
+> b</TD
+></TR
+><TR
+><TD CLASS="s8"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><SPAN CLASS="keyword"
+>data</SPAN
+>  <A HREF="#t%3ASMr"
+>SMr</A
+>  = <SPAN CLASS="keyword"
+>forall</SPAN
+> r s e j . (Show e, Read e, Typeable j, Typeable e, Typeable s, <A HREF="Core.html#t%3AModule"
+>Module</A
+> r s e j, Read s, Show s) =&gt; <A HREF="#v%3ASMr"
+>SMr</A
+> (Maybe s) r</TD
+></TR
+><TR
+><TD CLASS="s8"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><SPAN CLASS="keyword"
+>class</SPAN
+>  <A HREF="#t%3AModule"
+>Module</A
+> r s e j | s -&gt; r, s r -&gt; e, s r -&gt; j <SPAN CLASS="keyword"
+>where</SPAN
+></TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="decl"
+><A HREF="#v%3Amake"
+>make</A
+> :: r -&gt; TVar (Maybe s) -&gt; e -&gt; STM ([<A HREF="Core.html#t%3ASMr"
+>SMr</A
+>], [Either <A HREF="Core.html#t%3AE"
+>E</A
+> <A HREF="Core.html#t%3AJ"
+>J</A
+>])</TD
+></TR
+><TR
+><TD CLASS="decl"
+><A HREF="#v%3Aquery"
+>query</A
+> :: r -&gt; Maybe s -&gt; j -&gt; STM [Either <A HREF="Core.html#t%3AE"
+>E</A
+> <A HREF="Core.html#t%3AJ"
+>J</A
+>]</TD
+></TR
+></TABLE
+></TD
+></TR
+><TR
+><TD CLASS="s8"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><A HREF="#v%3Aactors"
+>actors</A
+> :: <A HREF="Core.html#t%3ASMr"
+>SMr</A
+> -&gt; IO <A HREF="Core.html#t%3AHandles"
+>Handles</A
+></TD
+></TR
+><TR
+><TD CLASS="s8"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><SPAN CLASS="keyword"
+>data</SPAN
+>  <A HREF="#t%3AHandles"
+>Handles</A
+>  = <A HREF="#v%3AHandles"
+>Handles</A
+> {<TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="recfield"
+><A HREF="#v%3Ainput"
+>input</A
+> :: Either <A HREF="Core.html#t%3AE"
+>E</A
+> <A HREF="Core.html#t%3AJ"
+>J</A
+> -&gt; IO ()</TD
+></TR
+><TR
+><TD CLASS="recfield"
+><A HREF="#v%3AoutputE"
+>outputE</A
+> :: IO <A HREF="Core.html#t%3AE"
+>E</A
+></TD
+></TR
+><TR
+><TD CLASS="recfield"
+><A HREF="#v%3AoutputJ"
+>outputJ</A
+> :: IO <A HREF="Core.html#t%3AJ"
+>J</A
+></TD
+></TR
+><TR
+><TD CLASS="recfield"
+><A HREF="#v%3Adump"
+>dump</A
+> :: IO [(Ctx, [<A HREF="Core.html#t%3AE"
+>E</A
+>])]</TD
+></TR
+><TR
+><TD CLASS="recfield"
+><A HREF="#v%3Aload"
+>load</A
+> :: [(Ctx, [<A HREF="Core.html#t%3AE"
+>E</A
+>])] -&gt; IO ()</TD
+></TR
+></TABLE
+>}</TD
+></TR
+></TABLE
+></TD
+></TR
+><TR
+><TD CLASS="s15"
+></TD
+></TR
+><TR
+><TD CLASS="section1"
+>Documentation</TD
+></TR
+><TR
+><TD CLASS="s15"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><SPAN CLASS="keyword"
+>data</SPAN
+>  <A NAME="t:J"
+><A NAME="t%3AJ"
+></A
+></A
+><B
+>J</B
+>  </TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="ndoc"
+>Query events, these cannot be serialized and will be discarded on serializations, typically queries. Don't use them to modify states ! These events are not persistent until processed.
+</TD
+></TR
+><TR
+><TD CLASS="section4"
+>Constructors</TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="1" CELLPADDING="0"
+><TR
+><TD CLASS="arg"
+><SPAN CLASS="keyword"
+>forall</SPAN
+> j . Typeable j =&gt; <A NAME="v:J"
+><A NAME="v%3AJ"
+></A
+></A
+><B
+>J</B
+> j</TD
+><TD CLASS="rdoc"
+></TD
+></TR
+></TABLE
+></TD
+></TR
+></TABLE
+></TD
+></TR
+><TR
+><TD CLASS="s15"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><A NAME="v:rj"
+><A NAME="v%3Arj"
+></A
+></A
+><B
+>rj</B
+> :: Typeable a1 =&gt; a1 -&gt; Either a <A HREF="Core.html#t%3AJ"
+>J</A
+></TD
+></TR
+><TR
+><TD CLASS="doc"
+>shortcut for Right . J
+</TD
+></TR
+><TR
+><TD CLASS="s15"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><SPAN CLASS="keyword"
+>data</SPAN
+>  <A NAME="t:E"
+><A NAME="t%3AE"
+></A
+></A
+><B
+>E</B
+>  </TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="ndoc"
+>Events which counts. the Read and Show constraints could be replaced with some more clever serialization class. These events are persistent , until processed
+</TD
+></TR
+><TR
+><TD CLASS="section4"
+>Constructors</TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="1" CELLPADDING="0"
+><TR
+><TD CLASS="arg"
+><SPAN CLASS="keyword"
+>forall</SPAN
+> e . (Show e, Read e, Typeable e) =&gt; <A NAME="v:E"
+><A NAME="v%3AE"
+></A
+></A
+><B
+>E</B
+> e</TD
+><TD CLASS="rdoc"
+></TD
+></TR
+></TABLE
+></TD
+></TR
+></TABLE
+></TD
+></TR
+><TR
+><TD CLASS="s15"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><A NAME="v:le"
+><A NAME="v%3Ale"
+></A
+></A
+><B
+>le</B
+> :: (Show a, Read a, Typeable a) =&gt; a -&gt; Either <A HREF="Core.html#t%3AE"
+>E</A
+> b</TD
+></TR
+><TR
+><TD CLASS="doc"
+>shortcut for Left . E
+</TD
+></TR
+><TR
+><TD CLASS="s15"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><SPAN CLASS="keyword"
+>data</SPAN
+>  <A NAME="t:SMr"
+><A NAME="t%3ASMr"
+></A
+></A
+><B
+>SMr</B
+>  </TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="ndoc"
+>Existential state and environment box
+</TD
+></TR
+><TR
+><TD CLASS="section4"
+>Constructors</TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="1" CELLPADDING="0"
+><TR
+><TD CLASS="arg"
+><SPAN CLASS="keyword"
+>forall</SPAN
+> r s e j . (Show e, Read e, Typeable j, Typeable e, Typeable s, <A HREF="Core.html#t%3AModule"
+>Module</A
+> r s e j, Read s, Show s) =&gt; <A NAME="v:SMr"
+><A NAME="v%3ASMr"
+></A
+></A
+><B
+>SMr</B
+> (Maybe s) r</TD
+><TD CLASS="rdoc"
+></TD
+></TR
+></TABLE
+></TD
+></TR
+></TABLE
+></TD
+></TR
+><TR
+><TD CLASS="s15"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><SPAN CLASS="keyword"
+>class</SPAN
+>  <A NAME="t:Module"
+><A NAME="t%3AModule"
+></A
+></A
+><B
+>Module</B
+> r s e j | s -&gt; r, s r -&gt; e, s r -&gt; j <SPAN CLASS="keyword"
+>where</SPAN
+></TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="ndoc"
+>interface for a module to partecipate , make or query function is computed on every event received which is the right type (:: e) or (:: j) for the module. r parameter is the read only environment for the module. A read only parameter is necessary because interactions with supermodules are generally not serializable , usually STM computations. To deserialize a module the r parameter is recreated firing the event responsable for the module creation in a rebuilt context. If r was included in the  mutable state we couldn't  rebuild it without firing all the events caught by the module before serialization.
+</TD
+></TR
+><TR
+><TD CLASS="s8"
+></TD
+></TR
+><TR
+><TD CLASS="section4"
+>Methods</TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="decl"
+><A NAME="v:make"
+><A NAME="v%3Amake"
+></A
+></A
+><B
+>make</B
+></TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="arg"
+>:: r</TD
+><TD CLASS="rdoc"
+>the read-only environment for the module
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+>-&gt; TVar (Maybe s)</TD
+><TD CLASS="rdoc"
+>the mutable state for the module, Nothing is for a unresponsive module
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+>-&gt; e</TD
+><TD CLASS="rdoc"
+>the event to process
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+>-&gt; STM ([<A HREF="Core.html#t%3ASMr"
+>SMr</A
+>], [Either <A HREF="Core.html#t%3AE"
+>E</A
+> <A HREF="Core.html#t%3AJ"
+>J</A
+>])</TD
+><TD CLASS="rdoc"
+>a new set of submodules and new events to broadcast
+</TD
+></TR
+></TABLE
+></TD
+></TR
+><TR
+><TD CLASS="s8"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><A NAME="v:query"
+><A NAME="v%3Aquery"
+></A
+></A
+><B
+>query</B
+></TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="arg"
+>:: r</TD
+><TD CLASS="rdoc"
+>the read-only environment for the module
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+>-&gt; Maybe s</TD
+><TD CLASS="rdoc"
+>the state in readonly fashon
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+>-&gt; j</TD
+><TD CLASS="rdoc"
+>the event to process
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+>-&gt; STM [Either <A HREF="Core.html#t%3AE"
+>E</A
+> <A HREF="Core.html#t%3AJ"
+>J</A
+>]</TD
+><TD CLASS="rdoc"
+>new events to broadcast
+</TD
+></TR
+></TABLE
+></TD
+></TR
+></TABLE
+></TD
+></TR
+><TR
+><TD CLASS="s8"
+></TD
+></TR
+><TR
+><TD CLASS="section4"
+><IMG SRC="minus.gif" CLASS="coll" ONCLICK="toggle(this,'i:Module')" ALT="show/hide"
+> Instances</TD
+></TR
+><TR
+><TD CLASS="body"
+><DIV ID="i:Module" STYLE="display:block;"
+><TABLE CLASS="vanilla" CELLSPACING="1" CELLPADDING="0"
+><TR
+><TD CLASS="decl"
+><A HREF="Core.html#t%3AModule"
+>Module</A
+> () GState GEvent ()</TD
+></TR
+><TR
+><TD CLASS="decl"
+><A HREF="Core.html#t%3AModule"
+>Module</A
+> () GState GEvent ()</TD
+></TR
+><TR
+><TD CLASS="decl"
+><A HREF="Core.html#t%3AModule"
+>Module</A
+> () GState GEvent ()</TD
+></TR
+><TR
+><TD CLASS="decl"
+><A HREF="Core.html#t%3AModule"
+>Module</A
+> HEnv HState HMake HQuery</TD
+></TR
+><TR
+><TD CLASS="decl"
+><A HREF="Core.html#t%3AModule"
+>Module</A
+> HEnv HState HMake HQuery</TD
+></TR
+><TR
+><TD CLASS="decl"
+><A HREF="Core.html#t%3AModule"
+>Module</A
+> HEnv HState HMake HQuery</TD
+></TR
+><TR
+><TD CLASS="decl"
+><A HREF="Core.html#t%3AModule"
+>Module</A
+> HEnv HState HMake HQuery</TD
+></TR
+></TABLE
+></DIV
+></TD
+></TR
+></TABLE
+></TD
+></TR
+><TR
+><TD CLASS="s15"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><A NAME="v:actors"
+><A NAME="v%3Aactors"
+></A
+></A
+><B
+>actors</B
+> :: <A HREF="Core.html#t%3ASMr"
+>SMr</A
+> -&gt; IO <A HREF="Core.html#t%3AHandles"
+>Handles</A
+></TD
+></TR
+><TR
+><TD CLASS="doc"
+>the main IO function which fires and kill the actors
+</TD
+></TR
+><TR
+><TD CLASS="s15"
+></TD
+></TR
+><TR
+><TD CLASS="decl"
+><SPAN CLASS="keyword"
+>data</SPAN
+>  <A NAME="t:Handles"
+><A NAME="t%3AHandles"
+></A
+></A
+><B
+>Handles</B
+>  </TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="0" CELLPADDING="0"
+><TR
+><TD CLASS="ndoc"
+>what we need to control the system
+</TD
+></TR
+><TR
+><TD CLASS="section4"
+>Constructors</TD
+></TR
+><TR
+><TD CLASS="body"
+><TABLE CLASS="vanilla" CELLSPACING="5" CELLPADDING="0"
+><TR
+><TD CLASS="arg"
+><A NAME="v:Handles"
+><A NAME="v%3AHandles"
+></A
+></A
+><B
+>Handles</B
+></TD
+><TD CLASS="rdoc"
+></TD
+></TR
+><TR
+><TD CLASS="body" COLSPAN="2"
+><TABLE CLASS="vanilla" CELLSPACING="1" CELLPADDING="0"
+><TR
+><TD CLASS="arg"
+><A NAME="v:input"
+><A NAME="v%3Ainput"
+></A
+></A
+><B
+>input</B
+> :: Either <A HREF="Core.html#t%3AE"
+>E</A
+> <A HREF="Core.html#t%3AJ"
+>J</A
+> -&gt; IO ()</TD
+><TD CLASS="rdoc"
+>accept an event
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+><A NAME="v:outputE"
+><A NAME="v%3AoutputE"
+></A
+></A
+><B
+>outputE</B
+> :: IO <A HREF="Core.html#t%3AE"
+>E</A
+></TD
+><TD CLASS="rdoc"
+>wait for an E
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+><A NAME="v:outputJ"
+><A NAME="v%3AoutputJ"
+></A
+></A
+><B
+>outputJ</B
+> :: IO <A HREF="Core.html#t%3AJ"
+>J</A
+></TD
+><TD CLASS="rdoc"
+>wait for an J
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+><A NAME="v:dump"
+><A NAME="v%3Adump"
+></A
+></A
+><B
+>dump</B
+> :: IO [(Ctx, [<A HREF="Core.html#t%3AE"
+>E</A
+>])]</TD
+><TD CLASS="rdoc"
+>TODO 
+</TD
+></TR
+><TR
+><TD CLASS="arg"
+><A NAME="v:load"
+><A NAME="v%3Aload"
+></A
+></A
+><B
+>load</B
+> :: [(Ctx, [<A HREF="Core.html#t%3AE"
+>E</A
+>])] -&gt; IO ()</TD
+><TD CLASS="rdoc"
+>TODO
+</TD
+></TR
+></TABLE
+></TD
+></TR
+></TABLE
+></TD
+></TR
+></TABLE
+></TD
+></TR
+><TR
+><TD CLASS="s15"
+></TD
+></TR
+><TR
+><TD CLASS="botbar"
+>Produced by <A HREF="http://www.haskell.org/haddock/"
+>Haddock</A
+> version 2.4.2</TD
+></TR
+></TABLE
+></BODY
+></HTML
+>

@@ -8,9 +8,12 @@ git:
 	git add README
 	git add LICENSE
 	git add makefile
+	git add docs
 	git commit
 	git push
-
+	
+doc:
+	haddock -o docs -h *.hs	
 edit:
 	gvim *.hs README LICENSE makefile
 
