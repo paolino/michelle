@@ -10,9 +10,15 @@ import Data.Maybe
 import Control.Monad
 import Control.Applicative
 
+
+data ProxySMs s = ProxySMs
+data ProxyE e = ProxyE 
+
+toProxyE :: e -> Proxy
+toProxyE e = 
 toDump :: [SMs] -> [E] -> String -> Dump
 toDump sms es x = case reads x of
-	[] -> error "structure messed up"
+	[] -> error ":structure messed up"
 	[((cs,rs),_)] -> let
 		cs' = [(readAnE e, map readAnSMs sms, i) | (e,sms,i) <- cs]
 		rs' = [(readAnSMs s, map (Left . readAnE) es) | (s,es) <- rs]
