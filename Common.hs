@@ -10,6 +10,7 @@ module Common (
 	SMr (..) , 
 	SMrt (..), 
 	Node (..) , 
+	Module (..),
 	Store, 
 	Restoring, 
 	Dump , 
@@ -73,7 +74,7 @@ data SMrt = forall r s e j. (Show e, Read e, Typeable j, Typeable e, Typeable s,
 
 -- | interface for a module to partecipate , make or query function is computed on every event received which is the right type (:: e) or (:: j) for the module. 'r' parameter is the read only environment for the module. A read only parameter is necessary because interactions with supermodules are generally not serializable , usually STM computations. To deserialize a module the 'r' parameter is recreated firing the event responsable for the module creation in a rebuilt context. If 'r' was included in the  mutable state we couldn't  rebuild it without firing all the events caught by the module before serialization.
 
-class Module r s e j | s -> r, s r -> e, s r -> j where
+class Module r s e j | s -> r, s -> e, s -> j where
 	make 	:: r 			-- ^ the read-only environment for the module
 		-> TVar (Maybe s) 	-- ^ the mutable state for the module, Nothing is for a unresponsive module
 		-> e 			-- ^ the event to process
@@ -82,9 +83,8 @@ class Module r s e j | s -> r, s r -> e, s r -> j where
 		-> Maybe s 		-- ^ the state in readonly fashon
 		-> j 			-- ^ the event to process
 		-> STM [Either E J]	-- ^ new events to broadcast
-	-- zeroenv :: r			-- ^ necessary only for the root node
-	s2e 	:: Maybe s -> e 
-	s2e 	= undefined
+	r0 	:: Maybe s -> r		-- ^ necessary when this module is used as a root node
+	r0 _ = error "this module doesn't have a default environment, and cannot be used as root"
 
 -- | simple wrapper around make/query calls. Disambiguate the type of event to process and choose the right call
 fire	:: SMrt			-- ^ environment and state for the module to accept the event 

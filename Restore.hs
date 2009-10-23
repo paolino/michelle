@@ -4,7 +4,7 @@ module Restore where
 import Control.Monad (foldM)
 import Control.Applicative ((<$>))
 import Data.Typeable (cast)
-import Data.Maybe (listToMaybe)
+import Data.Maybe (listToMaybe, fromJust)
 
 import Control.Concurrent.STM 
 	(STM, TVar, TChan, atomically, writeTVar, writeTChan, unGetTChan, readTVar, newTChan, newTVar)
@@ -12,8 +12,8 @@ import Control.Concurrent.STM
 import Data.Tree (subForest, flatten)
 import Data.Tree.Zipper (tree, root, getLabel, insertDownLast, fromTree)
 
-import Lib (mapAccumM)
-import Common (SMs (..), Store, SMrt (..), SMr (..) , Node (..) , Restoring, Dump , Borning, tstate, Coo, Ctx, down, fire)
+import Lib (mapAccumM, dup'TChan)
+import Common (Module (r0) , SMs (..), Store, SMrt (..), SMr (..) , Node (..) , Events, Restoring, Dump , Borning, tstate, Coo, Ctx, down, fire)
 
 -- import Debug.Trace
 
@@ -45,7 +45,7 @@ recreate t c@(e,sms,j) = do
 		Just (SMr s r) -> do
 			tc <- newTVar $ coo ++ [j]
 			st <- newTVar s
-			nt <- newTChan
+			nt <- dup'TChan (let Node _ _ _ ejs = getLabel t' in ejs)
 			let 	l = Node (SMrt st r) c tc nt
 			return $ insertDownLast (return l) t'
 -- | set state and 
@@ -66,8 +66,13 @@ restore (cs,rs) t = do
 launchAll :: Borning -> Store -> STM ()
 launchAll bs = mapM_ (writeTChan bs) . flatten . tree
 
-restoreIO :: Borning -> TVar Store -> IO Dump -> IO ()
-restoreIO bs ts r = do
+-- | this is the booting action for the machinery. Critical choices are here. the contexts list cs in Dump doesn't contain the creation context of the root node, while the value restoring list does. From the head of the latter we extract the type of the root node state 
+restoreIO :: Borning -> Events -> Dump -> IO Store
+restoreIO bs evs d@(cs,(SMs s,_):ss) = let us = undefined `asTypeOf` s in
 	atomically $ do 
-		readTVar ts >>= restore r >>= writeTVar ts
-		readTVar ts >>= launchAll bs 
+		st <- newTVar us 
+		tc <- newTVar []
+		let t0 = fromTree (return (Node (SMrt st $ r0 us) (error "accessing creation context of root") tc evs))
+		t <- restore d t0
+		launchAll bs t
+		return t

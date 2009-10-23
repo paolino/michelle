@@ -3,6 +3,7 @@ module Dump (dumpAction) where
 
 import Control.Monad (forM, forM_)
 import Data.Maybe (isNothing)
+import Control.Arrow (first)
 
 import Control.Concurrent.STM (STM, TVar, atomically, readTVar, writeTVar)
 
@@ -13,11 +14,11 @@ import Lib (contents, pruneM)
 import Common (SMs (..), SMrt (..), Store, Node (..), Dump, Coo)
 
 -- import Debug.Trace
--- compute a Dump value for persistence from the store. This is a very starving action, it accesses all TVars in the Store
+-- | compute a Dump value for persistence from the store. The context of the root node is dropped. This is a very starving action, it accesses all TVars in the Store. 
 dump :: Store -> STM Dump
 dump t = do
 	let ys = flatten . tree $ t
-	fmap unzip . forM ys $ \(Node (SMrt ts _) ctx _ evs) -> do
+	first tail . fmap unzip . forM ys $ \(Node (SMrt ts _) ctx _ evs) -> do
 		s <- readTVar ts
 		ejs <- contents evs
 		return (ctx,(SMs s,ejs))
