@@ -9,7 +9,9 @@ import Data.Typeable
 import Data.Maybe
 import Control.Monad
 import Control.Applicative
-
+import Workers
+import Dump
+import Restore
 
 data ProxySMs s = ProxySMs
 data ProxyE e = ProxyE 
@@ -52,18 +54,14 @@ data Handles = Handles {
 
 
 -- | the main IO function which fires and kill the actors
-program :: [SM] -> [E] -> SMr -> IO Handles   -- ^ communication channels with the modules
-program (sm:sms) es (SMr s r) = do
+program 	:: [SM] -- ^ state types
+		-> [E]  -- ^ event types
+		-> IO Handles   -- ^ communication channels with the modules
+program (sm:sms) es  = do
 	events <- atomically $ newTChan  -- events common channel (dump channel)
 	control <- atomically $ newTChan  -- borning machines channel
 	tree <- newTVar $ fromTree (return undefined)
-		events' <- dup'TChan events
-		ts <- newTVar s
-		tc <- newTVar []
-		writeTChan control (SMrt ts r, tc, events') 
-		newTVar $ Node (SMt ts) (E (),[]) tc events' [] 
-	forkIO . forever $ do
-		(smrts @(SMrt ts r) , tc, ch )  <- atomically $ readTChan control
+	forkIO $ workersThread tree control
 		forkIO . forever $ do
 			kth <- atomically $ do
 					ej <- readTChan ch 
@@ -82,4 +80,4 @@ program (sm:sms) es (SMr s r) = do
 		(atomically $ readTChan events)
 		undefined
 		undefined
--}
+

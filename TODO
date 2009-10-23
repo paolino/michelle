@@ -1,0 +1,5 @@
+-- see if we can ensure the impossibility to move the state from Nothing after Nothing state is entered
+newtype WMaybe a = WMaybe (Maybe a)
+setW :: a -> WMaybe a
+getW :: WMaybe a -> Maybe a
+endW :: WMaybe a

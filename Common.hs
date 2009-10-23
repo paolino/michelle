@@ -2,7 +2,27 @@
 
 
 
-module Common -- (J (..) , rj , E (..), le , SMr (..)  , Module (..), actors, Handles (..))
+-- | Data and types useful for specific modules
+module Common (
+	E (..),
+	J (..),
+	SMs (..), 
+	SMr (..) , 
+	SMrt (..), 
+	Node (..) , 
+	Store, 
+	Restoring, 
+	Dump , 
+	Borning,
+	Events, 
+	Coo, 
+	Ctx, 
+	Twin, 
+	tstate, 
+	down, 
+	fire
+	)
+
 	where
 
 import Data.Typeable (cast, Typeable)

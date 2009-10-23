@@ -7,6 +7,7 @@ git:
 	git add *.hs
 	git add README
 	git add LICENSE
+	git add TODO
 	git add makefile
 	git add docs
 	git commit
@@ -15,5 +16,5 @@ git:
 doc:
 	haddock -o docs -h *.hs	
 edit:
-	gvim *.hs README LICENSE makefile
+	gvim *.hs README LICENSE TODO makefile
 
