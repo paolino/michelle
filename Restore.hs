@@ -68,7 +68,6 @@ launchAll bs = mapM_ (writeTChan bs) . flatten . tree
 
 restoreIO :: Borning -> TVar Store -> IO Dump -> IO ()
 restoreIO bs ts r = do
-	d <- r
 	atomically $ do 
-		readTVar ts >>= restore d >>= writeTVar ts
+		readTVar ts >>= restore r >>= writeTVar ts
 		readTVar ts >>= launchAll bs 
