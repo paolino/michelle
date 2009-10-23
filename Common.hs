@@ -12,7 +12,9 @@ import Data.Tree.Zipper (TreeLoc, getChild)
 
 -- | Events which count. the Read and Show constraints could be replaced with some more clever serialization class. These events are persistent , until processed
 
-data E = forall e s r j. (Show e, Read e, Typeable e, Module r s e j) => E e
+data E = forall e . (Show e, Read e, Typeable e) => E  {unE :: e}
+instance Show E where
+	show (E e) = show e
 
 -- | shortcut for Left . E
 -- le :: (forall e s r j . (Show e, Read e, Typeable e, Module r s e j) => e) -> Either E b
@@ -32,6 +34,8 @@ type Events = TChan (Either E J)
 -- | Existential state box. This and the other boxes are used to store and move around modules data
 data SMs = forall r s e j. (Show e, Read e, Typeable j, Typeable e, Typeable s, Module r s e j, Read s, Show s) 
 	=> SMs (Maybe s)
+instance Show SMs where
+	show (SMs s) = show s
 -- | Existential state and environment box
 data SMr = forall r s e j. (Show e, Read e, Typeable j, Typeable e, Typeable s, Module r s e j, Read s, Show s) 
 	=> SMr (Maybe s) r

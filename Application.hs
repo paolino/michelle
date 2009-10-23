@@ -3,24 +3,28 @@ module Application
 	where
 
 import Common
+import Lib
 import Data.Either
 import Data.Typeable
 import Data.Maybe
-{-
-toDump :: [SMs] -> String -> Dump
-toDump sms x = case reads x of
-	[] -> error "parsing error 1"
+import Control.Monad
+import Control.Applicative
+
+toDump :: [SMs] -> [E] -> String -> Dump
+toDump sms es x = case reads x of
+	[] -> error "structure messed up"
 	[((cs,rs),_)] -> let
-		cs = do		(e,sms,i) <- cs
--}
-
-reada x = fst `fmap` (listToMaybe $ reads x)
-
-readSMs :: SMs -> String -> Maybe SMs
-readSMs (SMs q) x = fmap (SMs . asTypeOf q) $ reada x
-
-readE :: SMs -> String -> Maybe E
-readE (SMs q) x = fmap (E . asTypeOf (s2e q)) $ reada x
+		cs' = [(readAnE e, map readAnSMs sms, i) | (e,sms,i) <- cs]
+		rs' = [(readAnSMs s, map (Left . readAnE) es) | (s,es) <- rs]
+		in (cs',rs')
+	where 	readAnE e = case readKs e readE es of 
+			Nothing -> error $ "no event type for " ++ show e
+			Just e -> e
+		readAnSMs sm = case readKs sm readSMs sms of
+			Nothing -> error $ "no state type for " ++ show sm
+			Just sm -> sm
+		readSMs x (SMs q) = SMs <$> reada x q
+		readE x (E q) = E <$> reada x q
 
 toString :: Dump -> String 
 toString (cs,rs) = show (cs',rs') where
@@ -30,26 +34,25 @@ toString (cs,rs) = show (cs',rs') where
 			return (unSMs s,map unE . lefts $ ejs)
 	unSMs (SMs s) = show s
 	unE (E e) = show e
-{-		
-type Restoring = (SMs,[Either E J])
-type Ctx = (E,[SMs],Twin)
+
+
+	
 
 -- | what we need to control the system
 data Handles = Handles {
 	input :: Either E J -> IO (),	-- ^ accept an event
 	output :: IO (Either E J) ,	-- ^ wait for an event
 	dump :: FilePath -> IO (), 	-- ^ TODO 
-	load :: FilePath -> IO ()	-- ^ TODO
+	boot :: FilePath -> IO ()	-- ^ TODO
 	}
 
 
 -- | the main IO function which fires and kill the actors
-actors 	:: SMr 		-- ^ environment and state for the root module
-	-> IO Handles   -- ^ communication channels with the modules
-actors (SMr s r) = do
-	events <- atomically $ newTChan 
-	control <- atomically $ newTChan 
-	tree <- atomically $ do 
+program :: [SM] -> [E] -> IO Handles   -- ^ communication channels with the modules
+program (sm:sms) es  = do
+	events <- atomically $ newTChan  -- events common channel (dump channel)
+	control <- atomically $ newTChan  -- borning machines channel
+	tree <- newTVar $ fromTree (return undefined)
 		events' <- dup'TChan events
 		ts <- newTVar s
 		tc <- newTVar []

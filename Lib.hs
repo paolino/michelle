@@ -5,6 +5,7 @@ import Control.Monad.State
 import Data.Tree.Zipper
 import Data.Tree
 import Debug.Trace
+import Data.Maybe
 import Control.Applicative
 
 
@@ -76,3 +77,9 @@ prune f = onAugmented ((,) False) snd (process f)
 
 pruneM :: (Monad m, Functor m) => (a -> m Bool) -> TreeLoc a -> m (Maybe (TreeLoc a)) 
 pruneM f = onAugmentedM ((,) False) snd (processM f)
+
+-----------------------------------------------------------------
+reada x q = flip asTypeOf q <$> fst <$> (listToMaybe $ reads x)
+readKs :: String -> (String -> k -> Maybe k) -> [k] -> Maybe k
+readKs x f = msum . map (f x)
+
