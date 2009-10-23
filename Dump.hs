@@ -1,51 +1,46 @@
+-- | computing serializable values of the all machinary
+module Dump (dumpAction) where
 
-module Dump where
+import Control.Monad (forM, forM_)
+import Data.Maybe (isNothing)
 
-import Lib
-import CoreZ
-import Control.Monad
-import Control.Applicative
-import Control.Arrow
-import Data.Typeable
-import Control.Concurrent.STM
-import Control.Concurrent
-import Control.Monad.Maybe
-import Data.Maybe
-import Data.List
-import Debug.Trace
-import Data.Tree.Zipper as Z 
-import Data.Tree
-import Lib (mapAccumM, dup'TChan, contents, pruneM)
+import Control.Concurrent.STM (STM, TVar, atomically, readTVar, writeTVar)
 
+import Data.Tree (Tree, rootLabel, subForest, flatten)
+import Data.Tree.Zipper (tree)
 
+import Lib (contents, pruneM)
+import Common (SMs (..), SMrt (..), Store, Node (..), Dump, Coo)
+
+-- import Debug.Trace
+-- compute a Dump value for persistence from the store. This is a very starving action, it accesses all TVars in the Store
 dump :: Store -> STM Dump
 dump t = do
 	let ys = flatten . tree $ t
-	fmap unzip . forM ys $ \(Load (SMrt ts _) ctx _ evs) -> do
+	fmap unzip . forM ys $ \(Node (SMrt ts _) ctx _ evs) -> do
 		s <- readTVar ts
 		ejs <- contents evs
 		return (ctx,(SMs s,ejs))
 
+-- | prune off those branches where all nodes have state Nothing
 pruning :: Store -> STM (Maybe Store)
-pruning  = pruneM $ \(Load (SMrt x _) _ _ _) -> readTVar x >>= return . isNothing 
+pruning  = pruneM $ \(Node (SMrt x _) _ _ _) -> readTVar x >>= return . isNothing 
 
-recoo :: Coo -> Tree Load -> STM ()
+-- | after pruning the coordinates are to be recomputed as some branches may be missing
+recoo :: Coo -> Tree Node -> STM ()
 recoo coo t = do
-	let (Load _ _ tc _) = rootLabel t
+	let (Node _ _ tc _) = rootLabel t
 	writeTVar tc coo
 	forM_ (zip [0..] (subForest t)) $ \(j,t) -> recoo (coo ++ [j]) t
 
-type Interval = Int
-dumpIO :: TVar Store -> (Dump -> IO ()) -> Interval -> IO ()
-dumpIO ts w ti = forever $ do
-	threadDelay $ ti * 1000
-	d <- atomically $ do
-		t <- readTVar ts >>= pruning 
-		case t of
-			Nothing -> error "no more service"
-			Just t -> do 	recoo [] . tree $ t  
-					writeTVar ts t
-					dump t
-	w d
+-- | atomically access the Store to produce a serializable value of it all. BUG in case of industrial server this action is going to starve. SOLUTION add a semaphore on events processor threads
+dumpAction :: TVar Store -> IO Dump
+dumpAction ts = atomically $ do
+	t <- readTVar ts >>= pruning 
+	case t of
+		Nothing -> error "no more service"
+		Just t -> do 	recoo [] . tree $ t  
+				writeTVar ts t
+				dump t
 
 

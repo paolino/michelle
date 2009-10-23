@@ -1,21 +1,22 @@
+-- | building a machinery from a serialized value of it. 
 module Restore where
 
-import Lib
-import Common
--- import Control.Monad
-import Control.Applicative
-import Control.Arrow
-import Data.Typeable
-import Control.Concurrent.STM
-import Control.Concurrent
-import Control.Monad.Maybe
-import Data.Either
-import Data.Maybe
-import Data.List
-import Debug.Trace
-import Data.Tree.Zipper
-import Data.Tree hiding (Node)
-import Lib (mapAccumM, dup'TChan, contents)
+import Control.Monad (foldM)
+import Control.Applicative ((<$>))
+import Data.Typeable (cast)
+import Data.Maybe (listToMaybe)
+
+import Control.Concurrent.STM 
+	(STM, TVar, TChan, atomically, writeTVar, writeTChan, unGetTChan, readTVar, newTChan, newTVar)
+
+import Data.Tree (subForest, flatten)
+import Data.Tree.Zipper (tree, root, getLabel, insertDownLast, fromTree)
+
+import Lib (mapAccumM)
+import Common (SMs (..), Store, SMrt (..), SMr (..) , Node (..) , Restoring, Dump , Borning, tstate, Coo, Ctx, down, fire)
+
+-- import Debug.Trace
+
 
 -- | setting  state on a store node. The node is already there so its type is already fixed
 poke :: SMs -> Store -> STM ()
@@ -47,14 +48,14 @@ recreate t c@(e,sms,j) = do
 			nt <- newTChan
 			let 	l = Node (SMrt st r) c tc nt
 			return $ insertDownLast (return l) t'
-
+-- | set state and 
 put :: Node -> Restoring -> STM Node
 put l@(Node (SMrt st r) ctx tcoo evs)  (SMs s,  ejs)  =
 	case cast s of 
 		Nothing -> error "deserialization error, trying to push back a state"
 		Just s -> do
 			writeTVar st s
-			mapM_ (writeTChan evs) ejs
+			mapM_ (unGetTChan evs) ejs
 			return l
 
 restore :: Dump -> Store -> STM Store
