@@ -14,8 +14,6 @@ import Control.Applicative
 data ProxySMs s = ProxySMs
 data ProxyE e = ProxyE 
 
-toProxyE :: e -> Proxy
-toProxyE e = 
 toDump :: [SMs] -> [E] -> String -> Dump
 toDump sms es x = case reads x of
 	[] -> error ":structure messed up"
@@ -54,8 +52,8 @@ data Handles = Handles {
 
 
 -- | the main IO function which fires and kill the actors
-program :: [SM] -> [E] -> IO Handles   -- ^ communication channels with the modules
-program (sm:sms) es  = do
+program :: [SM] -> [E] -> SMr -> IO Handles   -- ^ communication channels with the modules
+program (sm:sms) es (SMr s r) = do
 	events <- atomically $ newTChan  -- events common channel (dump channel)
 	control <- atomically $ newTChan  -- borning machines channel
 	tree <- newTVar $ fromTree (return undefined)
