@@ -1,8 +1,8 @@
 module Restore where
 
 import Lib
-import CoreZ
-import Control.Monad
+import Common
+-- import Control.Monad
 import Control.Applicative
 import Control.Arrow
 import Data.Typeable
@@ -14,8 +14,16 @@ import Data.Maybe
 import Data.List
 import Debug.Trace
 import Data.Tree.Zipper
-import Data.Tree
+import Data.Tree hiding (Node)
 import Lib (mapAccumM, dup'TChan, contents)
+
+-- | setting  state on a store node. The node is already there so its type is already fixed
+poke :: SMs -> Store -> STM ()
+poke (SMs s) t = do 
+	SMrt st  _ <- return . tstate . getLabel $ t 
+	case cast s of 
+		Nothing -> error "deserialization error, trying to push back a state"
+		Just s -> writeTVar st s 
 
 
 -- | what is really needed for module recreation at each parent met, poking a state, going down last child and computing its position 
@@ -37,11 +45,11 @@ recreate t c@(e,sms,j) = do
 			tc <- newTVar $ coo ++ [j]
 			st <- newTVar s
 			nt <- newTChan
-			let 	l = Load (SMrt st r) c tc nt
+			let 	l = Node (SMrt st r) c tc nt
 			return $ insertDownLast (return l) t'
 
-put :: Load -> Restoring -> STM Load
-put l@(Load (SMrt st r) ctx tcoo evs)  (SMs s,  ejs)  =
+put :: Node -> Restoring -> STM Node
+put l@(Node (SMrt st r) ctx tcoo evs)  (SMs s,  ejs)  =
 	case cast s of 
 		Nothing -> error "deserialization error, trying to push back a state"
 		Just s -> do
@@ -49,10 +57,17 @@ put l@(Load (SMrt st r) ctx tcoo evs)  (SMs s,  ejs)  =
 			mapM_ (writeTChan evs) ejs
 			return l
 
-restore :: [Ctx] -> [Restoring] -> Store -> STM Store
-restore cs rs t = do
+restore :: Dump -> Store -> STM Store
+restore (cs,rs) t = do
 	t' <- foldM recreate (root t) cs
 	fromTree <$> mapAccumM put rs (tree t')
 
 launchAll :: Borning -> Store -> STM ()
-launchAll bs = mapM_ (writeTChan bs) . flatten . tree 
+launchAll bs = mapM_ (writeTChan bs) . flatten . tree
+
+restoreIO :: Borning -> TVar Store -> IO Dump -> IO ()
+restoreIO bs ts r = do
+	d <- r
+	atomically $ do 
+		readTVar ts >>= restore d >>= writeTVar ts
+		readTVar ts >>= launchAll bs 
