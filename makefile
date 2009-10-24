@@ -5,6 +5,7 @@ clean:
 	rm -f `find . -maxdepth 1 -perm -u=x -type f`
 git:
 	git add *.hs
+	git add example.service
 	git add README
 	git add LICENSE
 	git add TODO
