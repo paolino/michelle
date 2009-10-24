@@ -1,5 +1,5 @@
 -- | computing serializable values of the all machinary
-module Dump (dumpAction) where
+module Dump (newDump) where
 
 import Control.Monad (forM, forM_)
 import Data.Maybe (isNothing)
@@ -18,7 +18,7 @@ import Common (SMs (..), SMrt (..), Store, Node (..), Dump, Coo)
 dump :: Store -> STM Dump
 dump t = do
 	let ys = flatten . tree $ t
-	first tail . fmap unzip . forM ys $ \(Node (SMrt ts _) ctx _ evs) -> do
+	fmap (first tail . unzip) . forM ys $ \(Node (SMrt ts _) ctx _ evs) -> do
 		s <- readTVar ts
 		ejs <- contents evs
 		return (ctx,(SMs s,ejs))
@@ -35,13 +35,13 @@ recoo coo t = do
 	forM_ (zip [0..] (subForest t)) $ \(j,t) -> recoo (coo ++ [j]) t
 
 -- | atomically access the Store to produce a serializable value of it all. BUG in case of industrial server this action is going to starve. SOLUTION add a semaphore on events processor threads
-dumpAction :: TVar Store -> IO Dump
-dumpAction ts = atomically $ do
-	t <- readTVar ts >>= pruning 
+newDump :: Store -> STM (Store,Dump)
+newDump t = do
+	t <- pruning t
 	case t of
-		Nothing -> error "no more service"
-		Just t -> do 	recoo [] . tree $ t  
-				writeTVar ts t
-				dump t
+		Nothing -> error "no more service, pruned it all"
+		Just t -> do 	recoo [] . tree $ t 
+				d <- dump t
+				return (t,d)
 
 

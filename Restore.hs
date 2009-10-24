@@ -23,7 +23,7 @@ poke :: SMs -> Store -> STM ()
 poke (SMs s) t = do 
 	SMrt st  _ <- return . tstate . getLabel $ t 
 	case cast s of 
-		Nothing -> error "deserialization error, trying to push back a state"
+		Nothing -> error "poke: deserialization error, trying to push back a state"
 		Just s -> writeTVar st s 
 
 
@@ -38,10 +38,10 @@ pokedowncoo (t,c) x  = do
 recreate :: Store -> Ctx -> STM Store
 recreate t c@(e,sms,j) = do
 	(t',coo) <- foldM pokedowncoo (root t,[]) $ init sms
-	poke (last sms) t' 
+	poke (last sms) t'
 	(children,_) <- fire (tstate . getLabel $ t') (Left e) -- process the creation event
 	case listToMaybe . drop j $ children of
-		Nothing -> error "resuming error , index out of range in selecting borned twin"
+		Nothing -> error "recreate: resuming error , index out of range in selecting borned twin"
 		Just (SMr s r) -> do
 			tc <- newTVar $ coo ++ [j]
 			st <- newTVar s
@@ -50,9 +50,9 @@ recreate t c@(e,sms,j) = do
 			return $ insertDownLast (return l) t'
 -- | set state and 
 put :: Node -> Restoring -> STM Node
-put l@(Node (SMrt st r) ctx tcoo evs)  (SMs s,  ejs)  =
+put l@(Node (SMrt st r) ctx tcoo evs)  (SMs s,  ejs)  = do
 	case cast s of 
-		Nothing -> error "deserialization error, trying to push back a state"
+		Nothing -> error "put: deserialization error, trying to push back a state"
 		Just s -> do
 			writeTVar st s
 			mapM_ (unGetTChan evs) ejs
@@ -61,18 +61,18 @@ put l@(Node (SMrt st r) ctx tcoo evs)  (SMs s,  ejs)  =
 restore :: Dump -> Store -> STM Store
 restore (cs,rs) t = do
 	t' <- foldM recreate (root t) cs
-	fromTree <$> mapAccumM put rs (tree t')
+	fromTree <$> mapAccumM put rs (tree $ root t')
 
 launchAll :: Borning -> Store -> STM ()
 launchAll bs = mapM_ (writeTChan bs) . flatten . tree
 
 -- | this is the booting action for the machinery. Critical choices are here. the contexts list cs in Dump doesn't contain the creation context of the root node, while the value restoring list does. From the head of the latter we extract the type of the root node state 
-restoreIO :: Borning -> Events -> Dump -> IO Store
-restoreIO bs evs d@(cs,(SMs s,_):ss) = let us = undefined `asTypeOf` s in
-	atomically $ do 
+newStore :: Borning -> Events -> Dump -> STM Store
+newStore bs evs d@(cs,(SMs s,_):ss) = let us = undefined `asTypeOf` s in do 
 		st <- newTVar us 
 		tc <- newTVar []
-		let t0 = fromTree (return (Node (SMrt st $ r0 us) (error "accessing creation context of root") tc evs))
+		evs' <- dup'TChan evs
+		let t0 = fromTree (return (Node (SMrt st $ r0 us) (error "accessing creation context of root") tc evs'))
 		t <- restore d t0
 		launchAll bs t
 		return t

@@ -29,7 +29,7 @@ module Common (
 import Data.Typeable (cast, Typeable)
 import Control.Concurrent.STM (TVar, TChan, readTVar, STM)
 import Data.Tree.Zipper (TreeLoc, getChild)
-
+-- import Debug.Trace
 
 -- | Events which count. the Read and Show constraints could be replaced with some more clever serialization class. These events are persistent , until processed
 
@@ -37,17 +37,9 @@ data E = forall e . (Show e, Read e, Typeable e) => E  {unE :: e}
 instance Show E where
 	show (E e) = show e
 
--- | shortcut for Left . E
--- le :: (forall e s r j . (Show e, Read e, Typeable e, Module r s e j) => e) -> Either E b
--- le = Left . E
-
 -- | Query events, these cannot be serialized and will be discarded on serializations, typically queries. Don't use them to modify states ! These events are not persistent until processed.
 
 data J = forall j . Typeable j => J j
-
--- | shortcut for Right . J
--- rj :: Typeable a1 => a1 -> Either a J
--- rj  = Right . J
 
 -- | A channel for both types of events
 type Events = TChan (Either E J)

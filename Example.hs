@@ -4,12 +4,14 @@ import Control.Monad.State
 import Data.Char
 import Data.Typeable
 import Data.List
-import Core 
 import System.IO
 import Data.Either
 import Control.Concurrent
 import Control.Concurrent.STM
 import Debug.Trace
+
+import Common
+import Application
 
 data GEvent = Apri String | Chiudi String deriving (Read,Show,Typeable)
 data GState = GState Int [(String,Int)] deriving (Show,Read,Typeable)	
@@ -32,6 +34,7 @@ instance Module () GState GEvent () where
 			Nothing -> continue 
 			Just k' -> writeTVar g (Just $ GState k (delete (s,k') xs)) >> continue
 	query = undefined
+	r0 _ = ()
 
 data HState = HState Int Int deriving (Read,Show,Typeable)
 data HEnv = HEnv (Int -> STM Bool) 
@@ -53,7 +56,7 @@ instance Module HEnv HState HMake HQuery where
 		case x /= k of
 			True -> return []
 			False -> return [Right $ f y]		
-
+	r0 = undefined
 data Rs = RConto Int deriving (Show,Typeable)
 
 waitRs :: IO (Either E J) -> IO ()
@@ -67,6 +70,13 @@ waitRs c = do
 
 
 continue = return ([],[])
+
+h =   program 	[SMs (undefined :: Maybe GState), SMs (undefined :: Maybe HState)]
+		[E (undefined :: GEvent), E (undefined :: HMake)]
+
+le = Left . E
+rj = Right . J
+
 evs =	[	le $ Apri "ciao",
 		le $ Aggiorna 0 4,
 		le $ Aggiorna 0 3,
@@ -74,11 +84,4 @@ evs =	[	le $ Apri "ciao",
 		le $ Chiudi "ciao", 
 		le $ Aggiorna 0 (-1)
 	]
-main = do
-	hSetBuffering stdout LineBuffering
-	Handles input output _ _ <- actors $ SMr (Just $ GState 0 []) ()
-	forkIO . forM_ evs $ \x -> do
-		threadDelay 50000 
-		input x 
 
-	waitRs output
